@@ -6,10 +6,10 @@ import { LayoutDashboard, Car, Calendar , Users, FileText  } from 'lucide-react'
 
 const Links = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Manage Cars", href: "/dashboard/managecars", icon: Car },
-  { name: "Manage Bookings", href: "/dashboard/customers", icon: Calendar },
-  { name: "Manage Users", href: "/dashboard/users", icon: Users },
-  { name: "Reports", href: "/dashboard/rentals", icon: FileText },
+  { name: "Manage Cars", href: "/dashboard/manageCars", icon: Car },
+  { name: "Manage Bookings", href: "/dashboard/manageBookings", icon: Calendar },
+  { name: "Manage Users", href: "/dashboard/manageUsers", icon: Users },
+  { name: "Reports", href: "/dashboard/manageReports", icon: FileText },
 ];
 
 

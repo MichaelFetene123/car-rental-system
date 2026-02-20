@@ -41,6 +41,14 @@ export interface Car {
   
 }
 
+// Mock customers data
+export const customers = [
+  { id: "1", name: "John Doe" },
+  { id: "2", name: "Jane Smith" },
+  { id: "3", name: "Bob Johnson" },
+];
+
+
 export const cards: CardData[] = [
   {
     title: "Available cars",
@@ -153,3 +161,117 @@ export const initialCars: Car[] = [
   },
 ];
 
+// Function to get a car by ID
+export async function getCarById(id: string): Promise<Car> {
+  const car = initialCars.find(car => car.id === id);
+  
+  if (!car) {
+    throw new Error(`Car with ID ${id} not found`);
+  }
+  
+  return car;
+}
+
+// Function to update a car
+export async function updateCar(id: string, updatedCarData: Partial<Car>): Promise<Car> {
+  const carIndex = initialCars.findIndex(car => car.id === id);
+  
+  if (carIndex === -1) {
+    throw new Error(`Car with ID ${id} not found`);
+  }
+  
+  // Update the car with new data
+  const updatedCar = { ...initialCars[carIndex], ...updatedCarData };
+  initialCars[carIndex] = updatedCar;
+  
+  return updatedCar;
+}
+
+// Function to create a new car
+export async function createCar(carData: Partial<Car>): Promise<Car> {
+  // Generate a new ID (in a real app, this would come from the database)
+  const newId = (initialCars.length + 1).toString();
+  
+  // Create the new car object
+  const newCar: Car = {
+    id: newId,
+    name: carData.name || '',
+    category: carData.category || '',
+    price: carData.price || 0,
+    status: carData.status || 'available',
+    image_url: carData.image_url || '',
+    year: carData.year || 0,
+    transmission: carData.transmission || '',
+    seats: carData.seats || 0,
+  };
+  
+  // Add the new car to the array
+  initialCars.push(newCar);
+  
+  return newCar;
+}
+
+
+export interface Booking {
+  id: string;
+  customerName: string;
+  carName: string;
+  pickupDate: string;
+  returnDate: string;
+  totalAmount: number;
+  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
+  location: string;
+}
+
+export const initialBookings: Booking[] = [
+  {
+    id: "BK001",
+    customerName: "John Smith",
+    carName: "Tesla Model 3",
+    pickupDate: "2026-02-15",
+    returnDate: "2026-02-20",
+    totalAmount: 445,
+    status: "pending",
+    location: "Downtown",
+  },
+  {
+    id: "BK002",
+    customerName: "Sarah Johnson",
+    carName: "BMW 5 Series",
+    pickupDate: "2026-02-10",
+    returnDate: "2026-02-17",
+    totalAmount: 665,
+    status: "approved",
+    location: "Airport",
+  },
+  {
+    id: "BK003",
+    customerName: "Mike Wilson",
+    carName: "Range Rover Sport",
+    pickupDate: "2026-02-12",
+    returnDate: "2026-02-15",
+    totalAmount: 360,
+    status: "pending",
+    location: "Downtown",
+  },
+  {
+    id: "BK004",
+    customerName: "Emily Brown",
+    carName: "Honda Civic",
+    pickupDate: "2026-02-08",
+    returnDate: "2026-02-14",
+    totalAmount: 270,
+    status: "completed",
+    location: "Mall",
+  },
+  {
+    id: "BK005",
+    customerName: "David Lee",
+    carName: "Porsche 911",
+    pickupDate: "2026-02-16",
+    returnDate: "2026-02-18",
+    totalAmount: 500,
+    status: "rejected",
+    location: "Airport",
+  },
+];

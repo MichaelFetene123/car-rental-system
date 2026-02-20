@@ -1,5 +1,5 @@
 "use client"
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { Card, CardContent, CardHeader, CardTitle } from "../../card";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { revenueData, bookingData, carTypeData } from "@/app/lib/data";
 import { Calendar, Car, Users, DollarSign } from "lucide-react";

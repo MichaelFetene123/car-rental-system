@@ -247,7 +247,7 @@ export default function ManageCars() {
                     <SelectTrigger className="border-gray-500">
                       <SelectValue placeholder="Select transmission" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white">
+                    <SelectContent className="bg-white border-gray-300">
                       <SelectItem value="Automatic">Automatic</SelectItem>
                       <SelectItem value="Manual">Manual</SelectItem>
                     </SelectContent>
@@ -280,7 +280,7 @@ export default function ManageCars() {
                     <SelectTrigger className="border-gray-500">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-white">
+                    <SelectContent className="bg-white border-gray-300">
                       <SelectItem value="available">Available</SelectItem>
                       <SelectItem value="rented">Rented</SelectItem>
                       <SelectItem value="maintenance">Maintenance</SelectItem>

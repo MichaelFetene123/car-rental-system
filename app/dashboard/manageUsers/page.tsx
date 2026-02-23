@@ -268,7 +268,7 @@ export default function ManageUsers() {
                   <SelectTrigger className="border-gray-500 ">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="border-gray-500 bg-white">
+                  <SelectContent className="border-gray-300 bg-white">
                     <SelectItem value="customer">Customer</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="stuff">Stuff</SelectItem>
@@ -289,7 +289,7 @@ export default function ManageUsers() {
                   <SelectTrigger className="border-gray-500">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="border-gray-500 bg-white">
+                  <SelectContent className="border-gray-300 bg-white">
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>

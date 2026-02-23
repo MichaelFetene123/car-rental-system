@@ -34,7 +34,7 @@ export interface Car {
   category: string;
   price: number;
   status: "available" | "rented" | "maintenance";
-  image_url: string;
+  image: string;
   year: number;
   transmission: string;
   seats: number;
@@ -110,7 +110,7 @@ export const initialCars: Car[] = [
     category: "Electric",
     price: 89,
     status: "available",
-    image_url: "https://images.unsplash.com/photo-1581182394275-6abb23f30ab0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHlbGVjdHJpYyUyMGNhciUyMG1vZGVybnxlbnwxfHx8fDE3NzA1OTUwNzB8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+    image: "https://images.unsplash.com/photo-1581182394275-6abb23f30ab0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHlbGVjdHJpYyUyMGNhciUyMG1vZGVybnxlbnwxfHx8fDE3NzA1OTUwNzB8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
     year: 2024,
     transmission: "Automatic",
     seats: 5,
@@ -121,7 +121,7 @@ export const initialCars: Car[] = [
     category: "Sedan",
     price: 95,
     status: "rented",
-    image_url: "https://images.unsplash.com/photo-1758216383800-7023ee8ed42b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBzZWRhbiUyMGNhcnxlbnwxfHx8fDE3NzA1Mjg2NTd8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+    image: "https://images.unsplash.com/photo-1758216383800-7023ee8ed42b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBzZWRhbiUyMGNhcnxlbnwxfHx8fDE3NzA1Mjg2NTd8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
     year: 2023,
     transmission: "Automatic",
     seats: 5,
@@ -132,7 +132,7 @@ export const initialCars: Car[] = [
     category: "SUV",
     price: 120,
     status: "available",
-    image_url: "https://images.unsplash.com/photo-1747414632749-6c8b14ba30fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdXYlMjBjYXIlMjBleHRlcmlvcnxlbnwxfHx8fDE3NzA2NDUwNjV8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+    image: "https://images.unsplash.com/photo-1747414632749-6c8b14ba30fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdXYlMjBjYXIlMjBleHRlcmlvcnxlbnwxfHx8fDE3NzA2NDUwNjV8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
     year: 2024,
     transmission: "Automatic",
     seats: 7,
@@ -143,7 +143,7 @@ export const initialCars: Car[] = [
     category: "Sports",
     price: 250,
     status: "maintenance",
-    image_url: "https://images.unsplash.com/photo-1696581084306-591db2e1af14?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXIlMjByZWR8ZW58MXx8fHwxNzcwNTk4MTI1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+    image: "https://images.unsplash.com/photo-1696581084306-591db2e1af14?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXIlMjByZWR8ZW58MXx8fHwxNzcwNTk4MTI1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
     year: 2024,
     transmission: "Manual",
     seats: 2,
@@ -154,7 +154,7 @@ export const initialCars: Car[] = [
     category: "Compact",
     price: 45,
     status: "available",
-    image_url: "https://images.unsplash.com/photo-1743809809295-cfd2a2e3d40f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb21wYWN0JTIwaGF0Y2hiYWNrJTIwY2FyfGVufDF8fHx8MTc3MDYxNjUzOXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+    image: "https://images.unsplash.com/photo-1743809809295-cfd2a2e3d40f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb21wYWN0JTIwaGF0Y2hiYWNrJTIwY2FyfGVufDF8fHx8MTc3MDYxNjUzOXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
     year: 2023,
     transmission: "Automatic",
     seats: 5,
@@ -162,54 +162,6 @@ export const initialCars: Car[] = [
 ];
 
 // Function to get a car by ID
-export async function getCarById(id: string): Promise<Car> {
-  const car = initialCars.find(car => car.id === id);
-  
-  if (!car) {
-    throw new Error(`Car with ID ${id} not found`);
-  }
-  
-  return car;
-}
-
-// Function to update a car
-export async function updateCar(id: string, updatedCarData: Partial<Car>): Promise<Car> {
-  const carIndex = initialCars.findIndex(car => car.id === id);
-  
-  if (carIndex === -1) {
-    throw new Error(`Car with ID ${id} not found`);
-  }
-  
-  // Update the car with new data
-  const updatedCar = { ...initialCars[carIndex], ...updatedCarData };
-  initialCars[carIndex] = updatedCar;
-  
-  return updatedCar;
-}
-
-// Function to create a new car
-export async function createCar(carData: Partial<Car>): Promise<Car> {
-  // Generate a new ID (in a real app, this would come from the database)
-  const newId = (initialCars.length + 1).toString();
-  
-  // Create the new car object
-  const newCar: Car = {
-    id: newId,
-    name: carData.name || '',
-    category: carData.category || '',
-    price: carData.price || 0,
-    status: carData.status || 'available',
-    image_url: carData.image_url || '',
-    year: carData.year || 0,
-    transmission: carData.transmission || '',
-    seats: carData.seats || 0,
-  };
-  
-  // Add the new car to the array
-  initialCars.push(newCar);
-  
-  return newCar;
-}
 
 
 export interface Booking {
@@ -273,5 +225,71 @@ export const initialBookings: Booking[] = [
     totalAmount: 500,
     status: "rejected",
     location: "Airport",
+  },
+];
+
+
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: "customer" | "admin" | "stuff";
+  status: "active" | "inactive" | "suspended";
+  joinDate: string;
+  totalBookings: number;
+}
+
+export const initialUsers: User[] = [
+  {
+    id: "1",
+    name: "John Smith",
+    email: "john.smith@example.com",
+    phone: "+1 (555) 123-4567",
+    role: "customer",
+    status: "active",
+    joinDate: "2025-05-12",
+    totalBookings: 8,
+  },
+  {
+    id: "2",
+    name: "Sarah Johnson",
+    email: "sarah.j@example.com",
+    phone: "+1 (555) 234-5678",
+    role: "customer",
+    status: "active",
+    joinDate: "2025-08-20",
+    totalBookings: 12,
+  },
+  {
+    id: "3",
+    name: "Mike Wilson",
+    email: "mike.wilson@example.com",
+    phone: "+1 (555) 345-6789",
+    role: "stuff",
+    status: "active",
+    joinDate: "2025-11-05",
+    totalBookings: 5,
+  },
+  {
+    id: "4",
+    name: "Emily Brown",
+    email: "emily.b@example.com",
+    phone: "+1 (555) 456-7890",
+    role: "admin",
+    status: "active",
+    joinDate: "2024-03-15",
+    totalBookings: 0,
+  },
+  {
+    id: "5",
+    name: "David Lee",
+    email: "david.lee@example.com",
+    phone: "+1 (555) 567-8901",
+    role: "customer",
+    status: "suspended",
+    joinDate: "2025-09-30",
+    totalBookings: 3,
   },
 ];

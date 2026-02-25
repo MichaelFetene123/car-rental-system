@@ -4,6 +4,8 @@ import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { cn } from "./utils/utils";
 
+// todo: remove this page
+
 export default function PublicHeader({ className}: React.ComponentProps<"header">) {
   return (
     <header className={cn(`border-b border-gray-200 bg-white sticky top-0 z-50 ${className}`)} >

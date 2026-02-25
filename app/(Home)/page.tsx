@@ -1,13 +1,11 @@
 "use client";
 import Link from "next/link";
 import { Search, Filter, Users, Fuel, Settings } from "lucide-react";
-import PublicHeader from "@/app/ui/public-header";
+// import PublicHeader from "@/app/ui/public-header";
 import { initialCars } from "@/app/lib/data";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 
 import { useState } from "react";
-import { Button } from "@/app/ui/button";
-import { Input } from "@/app/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,21 +15,42 @@ import {
 } from "@/app/ui/select";
 import { MapPin, Calendar } from "lucide-react";
 // import carImage from "figma:asset/4ad8fba70d6d1d6bb955a4c435e3235b26c7faa4.png";
-import { mockLocations } from "@/app/lib/mockData";
+import { mockLocations, mockCars } from "@/app/lib/mockData";
 import { useRouter } from "next/navigation";
+import { Button } from "@/app/ui/button";
+import { Input } from "@/app/ui/input";
+import { Badge } from "@/app/ui/badge";
+import { Card } from "@/app/ui/card";
+
+const carImages = [
+  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMEJNVyUyMHNwb3J0JTIwY2FyJTIwcm9hZHxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+  "https://images.unsplash.com/photo-1606173929045-3dd85676897b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibHVlJTIwQk1XJTIwbHV4dXJ5JTIwY2FyJTIwb2NlYW58ZW58MXx8fHwxNzcxODQ3NjEzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+  "https://images.unsplash.com/photo-1764045565546-a5a8bf80fbec?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMFRlc2xhJTIwZWxlY3RyaWMlMjBjYXIlMjBtb3VudGFpbnxlbnwxfHx8fDE3NzE4NDc2MTR8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+  "https://images.unsplash.com/photo-1659083934189-ebc3cfd8d4c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBzaWx2ZXIlMjBzZWRhbiUyMGNhcnxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMEJNVyUyMHNwb3J0JTIwY2FyJTIwcm9hZHxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+  "https://images.unsplash.com/photo-1606173929045-3dd85676897b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibHVlJTIwQk1XJTIwbHV4dXJ5JTIwY2FyJTIwb2NlYW58ZW58MXx8fHwxNzcxODQ3NjEzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+];
 
 export default function HomePage() {
   const router = useRouter();
   const [pickupLocation, setPickupLocation] = useState("");
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleSearch = () => {
     router.push("/cars");
   };
+ const filteredCars = mockCars.filter(
+    (car) =>
+      car.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      car.type.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+
   return (
     <section>
-      <PublicHeader className="shadow-md shadow-blue-100" />
+      {/* <PublicHeader className="shadow-md shadow-blue-100" /> */}
       <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-white overflow-hidden">
         {/* Hero Section */}
         <section className="relative pt-12 pb-24">
@@ -74,7 +93,7 @@ export default function HomePage() {
                       </svg>
                     </span>
                   </h1>
-                  <p className="text-lg text-gray-600 max-w-md">
+                  <p className=" text-gray-600 max-w-md italic ">
                     Get a car wherever and whenever you need it with your
                     device. We offer a wide range of vehicles to suit your
                     needs. Book now and enjoy affordable rates and exceptional
@@ -179,71 +198,55 @@ export default function HomePage() {
               </span>
             </h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-              {initialCars.map((car) => (
-                <Link
-                  href={`/cars/${car.id}`}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCars.map((car, index) => (
+                <Card
                   key={car.id}
-                  className="group block"
+                  className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                  onClick={() => router.push(`/cars/${car.id}`)}
                 >
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    {/* Image Container */}
-                    <div className="relative h-64 w-full bg-gray-50">
-                      <ImageWithFallback
-                        src={car.image}
-                        alt={car.name}
-                        className="w-full h-full object-cover"
-                      />
-                      {/* Floating Badges */}
-                      <div className="absolute top-4 left-4">
-                        <span className="bg-blue-600/90 backdrop-blur-sm text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg">
-                          Available Now
-                        </span>
-                      </div>
-                      <div className="absolute bottom-4 right-4">
-                        <span className="bg-black/80 backdrop-blur-sm text-white text-sm font-bold px-4 py-2 rounded-lg shadow-lg">
-                          ${car.price}/day
-                        </span>
-                      </div>
+                  <div className="relative">
+                    <ImageWithFallback
+                      src={carImages[index % carImages.length]}
+                      alt={car.name}
+                      className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    {car.available && (
+                      <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
+                        Available Now
+                      </Badge>
+                    )}
+                    <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
+                      ${car.pricePerDay}/day
                     </div>
+                  </div>
 
-                    {/* Content */}
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                            {car.name}
-                          </h3>
-                          <p className="text-sm text-gray-400 font-medium tracking-wide uppercase">
-                            {car.category} {car.year}
-                          </p>
-                        </div>
+                  <div className="p-5">
+                    <h3 className="text-xl font-semibold mb-1">{car.name}</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      {car.type} {car.year}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        <span>{car.seats} Seats</span>
                       </div>
-
-                      <div className="h-px bg-gray-100 my-4"></div>
-
-                      {/* Features Grid */}
-                      <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm text-gray-500">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-blue-500" />
-                          <span>{car.seats} Seats</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Fuel className="h-4 w-4 text-blue-500" />
-                          <span>Gasoline</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Settings className="h-4 w-4 text-blue-500" />
-                          <span>{car.transmission}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-blue-500" />
-                          <span>Los Angeles</span>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Fuel className="w-4 h-4" />
+                        <span>{car.fuelType}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4" />
+                        <span>{car.transmission}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>{car.location}</span>
                       </div>
                     </div>
                   </div>
-                </Link>
+                </Card>
               ))}
             </div>
           </div>
@@ -300,7 +303,7 @@ export default function HomePage() {
         </section>
 
         {/* CTA Section */}
-        <section className="bg-blue-600 py-16">
+        <section className="bg-gradient-to-r from-blue-600 to-blue-300 py-16 max-w-5xl mx-auto rounded-2xl  ">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold text-white mb-4">
               Ready to Hit the Road?
@@ -319,10 +322,7 @@ export default function HomePage() {
           </div>
         </section>
 
-
         {/* footer */}
-
-        
       </div>
     </section>
   );

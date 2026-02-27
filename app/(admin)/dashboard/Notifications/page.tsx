@@ -37,6 +37,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/ui/table";
+import { lusitana } from "@/app/ui/utils/fonts";
+import { Lusitana } from "next/font/google";
 
 interface NotificationTemplate {
   id: string;
@@ -168,7 +170,9 @@ export default function ManageNotifications() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Notifications & Communication</h1>
+        <h1 className={`${lusitana.className} text-2xl`}>
+          Notifications & Communication
+        </h1>
         <p className="text-muted-foreground">
           Manage email, SMS notifications, and communication settings
         </p>
@@ -219,18 +223,40 @@ export default function ManageNotifications() {
       </div>
 
       <Tabs defaultValue="templates">
-        <TabsList>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="logs">Notification Logs</TabsTrigger>
-          <TabsTrigger value="send">Send Notification</TabsTrigger>
+        <TabsList className="bg-gray-200 rounded-full">
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="templates"
+          >
+            Templates
+          </TabsTrigger>
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="settings"
+          >
+            Settings
+          </TabsTrigger>
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="logs"
+          >
+            Notification Logs
+          </TabsTrigger>
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="send"
+          >
+            Send Notification
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Templates</CardTitle>
-              <CardDescription>
+              <CardTitle className={`text-xl ${lusitana.className}`}>
+                Notification Templates
+              </CardTitle>
+              <CardDescription className="text-gray-500">
                 Manage automated email and SMS templates
               </CardDescription>
             </CardHeader>
@@ -239,7 +265,7 @@ export default function ManageNotifications() {
                 {templates.map((template) => (
                   <div
                     key={template.id}
-                    className="flex items-start justify-between border rounded-lg p-4"
+                    className="flex items-start justify-between border  border-gray-300 rounded-lg p-4"
                   >
                     <div className="flex items-start gap-3 flex-1">
                       <div className="p-2 rounded-lg bg-blue-100">
@@ -252,19 +278,22 @@ export default function ManageNotifications() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-semibold">{template.name}</h4>
-                          <Badge variant="outline">
+                          <Badge
+                            variant="outline"
+                            className="border-gray-200 bg-gray-200"
+                          >
                             {template.type.toUpperCase()}
                           </Badge>
                         </div>
                         {template.subject && (
-                          <p className="text-sm text-muted-foreground mb-2">
+                          <p className="text-sm text-muted-foreground mb-2 text-gray-500">
                             Subject: {template.subject}
                           </p>
                         )}
-                        <p className="text-sm text-muted-foreground line-clamp-2">
+                        <p className="text-sm text-muted-foreground line-clamp-2 text-gray-500">
                           {template.content}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-muted-foreground mt-2 text-gray-500">
                           Trigger:{" "}
                           <code className="bg-gray-100 px-1 rounded">
                             {template.trigger}
@@ -276,11 +305,13 @@ export default function ManageNotifications() {
                       <Switch
                         checked={template.enabled}
                         onCheckedChange={() => toggleTemplate(template.id)}
+                        className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 [&_[data-slot=switch-thumb]]:bg-white"
                       />
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setSelectedTemplate(template)}
+                        className="border-gray-300 hover:bg-gray-200"
                       >
                         Edit
                       </Button>
@@ -295,8 +326,10 @@ export default function ManageNotifications() {
         <TabsContent value="settings" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Email Settings (SMTP)</CardTitle>
-              <CardDescription>
+              <CardTitle className={`${lusitana.className} text-xl`}>
+                Email Settings (SMTP)
+              </CardTitle>
+              <CardDescription className="text-gray-500">
                 Configure email delivery settings
               </CardDescription>
             </CardHeader>
@@ -312,6 +345,7 @@ export default function ManageNotifications() {
                         smtpHost: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -324,6 +358,7 @@ export default function ManageNotifications() {
                         smtpPort: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -336,6 +371,7 @@ export default function ManageNotifications() {
                         smtpUser: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -349,6 +385,7 @@ export default function ManageNotifications() {
                         smtpPassword: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -361,6 +398,7 @@ export default function ManageNotifications() {
                         fromName: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -373,17 +411,18 @@ export default function ManageNotifications() {
                         fromEmail: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
               </div>
-              <Button>Save Email Settings</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Email Settings</Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>SMS Settings</CardTitle>
-              <CardDescription>Configure SMS gateway (Twilio)</CardDescription>
+              <CardTitle className={`${lusitana.className} text-xl`}>SMS Settings</CardTitle>
+              <CardDescription className="text-gray-500">Configure SMS gateway (Twilio)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -395,10 +434,10 @@ export default function ManageNotifications() {
                       setSmsSettings({ ...smsSettings, provider: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-gray-100 bg-gray-100 focus:border-gray-500">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="border-none bg-white">
                       <SelectItem value="twilio">Twilio</SelectItem>
                       <SelectItem value="nexmo">Nexmo</SelectItem>
                       <SelectItem value="africas_talking">
@@ -417,6 +456,7 @@ export default function ManageNotifications() {
                         fromNumber: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -429,6 +469,7 @@ export default function ManageNotifications() {
                         accountSid: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -442,10 +483,11 @@ export default function ManageNotifications() {
                         authToken: e.target.value,
                       })
                     }
+                    className="border-gray-100 bg-gray-100 focus:border-gray-500"
                   />
                 </div>
               </div>
-              <Button>Save SMS Settings</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save SMS Settings</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -453,13 +495,13 @@ export default function ManageNotifications() {
         <TabsContent value="logs">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Logs</CardTitle>
-              <CardDescription>Recent notification activity</CardDescription>
+              <CardTitle className={`${lusitana.className} text-xl`}>Notification Logs</CardTitle>
+              <CardDescription className="text-gray-500">Recent notification activity</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-gray-50 border-gray-300">
                     <TableHead>Type</TableHead>
                     <TableHead>Recipient</TableHead>
                     <TableHead>Subject</TableHead>
@@ -469,7 +511,7 @@ export default function ManageNotifications() {
                 </TableHeader>
                 <TableBody>
                   {logs.map((log) => (
-                    <TableRow key={log.id}>
+                    <TableRow key={log.id} className="border-gray-300 ">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {log.type === "email" ? (
@@ -491,6 +533,7 @@ export default function ManageNotifications() {
                                 ? "destructive"
                                 : "secondary"
                           }
+                          className={`${log.status === "sent" ? "capitalize bg-green-100 text-green-600" : log.status === "failed" ? "capitalize bg-red-100 text-red-600" : "capitalize bg-gray-100 text-gray-600"}`}
                         >
                           {log.status}
                         </Badge>
@@ -509,8 +552,8 @@ export default function ManageNotifications() {
         <TabsContent value="send">
           <Card>
             <CardHeader>
-              <CardTitle>Send Custom Notification</CardTitle>
-              <CardDescription>
+              <CardTitle className={`${lusitana.className} text-xl`}>Send Custom Notification</CardTitle>
+              <CardDescription className="text-gray-500">
                 Send a one-time notification to customers
               </CardDescription>
             </CardHeader>
@@ -518,10 +561,10 @@ export default function ManageNotifications() {
               <div className="space-y-2">
                 <Label>Notification Type</Label>
                 <Select defaultValue="email">
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-100 bg-gray-100 focus:border-gray-500">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="border-none bg-white">
                     <SelectItem value="email">Email</SelectItem>
                     <SelectItem value="sms">SMS</SelectItem>
                   </SelectContent>
@@ -530,10 +573,10 @@ export default function ManageNotifications() {
               <div className="space-y-2">
                 <Label>Recipients</Label>
                 <Select defaultValue="all">
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-100 bg-gray-100 focus:border-gray-500">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent  >
+                  <SelectContent className="border-none bg-white">
                     <SelectItem value="all">All Customers</SelectItem>
                     <SelectItem value="active">Active Bookings</SelectItem>
                     <SelectItem value="custom">Custom List</SelectItem>
@@ -542,13 +585,13 @@ export default function ManageNotifications() {
               </div>
               <div className="space-y-2">
                 <Label>Subject</Label>
-                <Input placeholder="Enter email subject" />
+                <Input placeholder="Enter email subject" className="border-gray-100 bg-gray-100 focus:border-gray-500" />
               </div>
               <div className="space-y-2">
                 <Label>Message</Label>
-                <Textarea placeholder="Enter your message..." rows={6} />
+                <Textarea placeholder="Enter your message..." rows={6} className="border-gray-100 bg-gray-100 focus:border-gray-500" />
               </div>
-              <Button className="w-full">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                 <Send className="size-4 mr-2" />
                 Send Notification
               </Button>

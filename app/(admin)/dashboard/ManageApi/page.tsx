@@ -41,6 +41,7 @@ import {
   DialogTrigger,
 } from "@/app/ui/dialog";
 import { toast } from "sonner";
+import { lusitana } from "@/app/ui/utils/fonts";
 
 interface APIKey {
   id: string;
@@ -235,17 +236,34 @@ export default function ManageAPI() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">API & Technical Tools</h1>
-        <p className="text-muted-foreground">
+        <h1 className={`${lusitana.className} text-2xl`}>
+          API & Technical Tools
+        </h1>
+        <p className="text-muted-foreground text-gray-500">
           Manage REST API access, webhooks, and monitor API usage
         </p>
       </div>
 
       <Tabs defaultValue="keys">
-        <TabsList>
-          <TabsTrigger value="keys">API Keys</TabsTrigger>
-          <TabsTrigger value="docs">Documentation</TabsTrigger>
-          <TabsTrigger value="logs">API Logs</TabsTrigger>
+        <TabsList className="bg-gray-200 rounded-full">
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="keys"
+          >
+            API Keys
+          </TabsTrigger>
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="docs"
+          >
+            Documentation
+          </TabsTrigger>
+          <TabsTrigger
+            className="data-[state=active]:bg-white data-[state=active]:text-black rounded-full"
+            value="logs"
+          >
+            API Logs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="keys" className="space-y-4">
@@ -253,8 +271,10 @@ export default function ManageAPI() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>API Keys</CardTitle>
-                  <CardDescription>
+                  <CardTitle className={`${lusitana.className} text-lg`}>
+                    API Keys
+                  </CardTitle>
+                  <CardDescription className="text-gray-500">
                     Manage API keys for external integrations
                   </CardDescription>
                 </div>
@@ -263,12 +283,12 @@ export default function ManageAPI() {
                   onOpenChange={setIsCreateDialogOpen}
                 >
                   <DialogTrigger asChild>
-                    <Button>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                       <Plus className="size-4 mr-2" />
                       Create API Key
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="bg-white border-none">
                     <DialogHeader>
                       <DialogTitle>Create New API Key</DialogTitle>
                       <DialogDescription>
@@ -282,11 +302,12 @@ export default function ManageAPI() {
                           value={newKeyName}
                           onChange={(e) => setNewKeyName(e.target.value)}
                           placeholder="e.g., Production API, Mobile App"
+                          className="border-gray-400"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Permissions</Label>
-                        <div className="border rounded-lg p-3 space-y-2">
+                        <div className="border  border-gray-400 rounded-lg p-3 space-y-2">
                           {availablePermissions.map((permission) => (
                             <label
                               key={permission}
@@ -323,6 +344,7 @@ export default function ManageAPI() {
                       <Button
                         variant="outline"
                         onClick={() => setIsCreateDialogOpen(false)}
+                        className="hover:bg-gray-200 border-gray-300"
                       >
                         Cancel
                       </Button>
@@ -331,6 +353,7 @@ export default function ManageAPI() {
                         disabled={
                           !newKeyName || selectedPermissions.length === 0
                         }
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         Create Key
                       </Button>
@@ -342,7 +365,10 @@ export default function ManageAPI() {
             <CardContent>
               <div className="space-y-4">
                 {apiKeys.map((apiKey) => (
-                  <div key={apiKey.id} className="border rounded-lg p-4">
+                  <div
+                    key={apiKey.id}
+                    className="border border-gray-300 rounded-lg p-4"
+                  >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -353,11 +379,16 @@ export default function ManageAPI() {
                                 ? "default"
                                 : "secondary"
                             }
+                            className={
+                              apiKey.status === "active"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-100 text-gray-800"
+                            }
                           >
                             {apiKey.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground text-gray-500">
                           Created {apiKey.createdAt} • Last used{" "}
                           {apiKey.lastUsed}
                         </p>
@@ -372,6 +403,7 @@ export default function ManageAPI() {
                           variant="outline"
                           size="icon"
                           onClick={() => toggleShowKey(apiKey.id)}
+                          className="border-gray-300 hover:bg-gray-200"
                         >
                           {showKey[apiKey.id] ? (
                             <EyeOff className="size-4" />
@@ -383,12 +415,13 @@ export default function ManageAPI() {
                           variant="outline"
                           size="icon"
                           onClick={() => copyToClipboard(apiKey.key)}
+                          className="border-gray-300 hover:bg-gray-200"
                         >
                           <Copy className="size-4" />
                         </Button>
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">
+                        <p className="text-xs font-medium text-muted-foreground mb-1 text-gray-500">
                           Permissions:
                         </p>
                         <div className="flex flex-wrap gap-1">
@@ -396,7 +429,7 @@ export default function ManageAPI() {
                             <Badge
                               key={permission}
                               variant="outline"
-                              className="text-xs"
+                              className="text-xs border-gray-300"
                             >
                               {permission}
                             </Badge>
@@ -409,6 +442,7 @@ export default function ManageAPI() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRevokeKey(apiKey.id)}
+                            className="border-gray-400 hover:bg-gray-200"
                           >
                             <RefreshCw className="size-3 mr-1" />
                             Revoke
@@ -418,6 +452,7 @@ export default function ManageAPI() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleDeleteKey(apiKey.id)}
+                          className="border-gray-400 hover:bg-gray-200"
                         >
                           <Trash2 className="size-3 mr-1" />
                           Delete
@@ -434,8 +469,8 @@ export default function ManageAPI() {
         <TabsContent value="docs">
           <Card>
             <CardHeader>
-              <CardTitle>REST API Documentation</CardTitle>
-              <CardDescription>
+              <CardTitle className={`${lusitana.className} text-lg`}>REST API Documentation</CardTitle>
+              <CardDescription className="text-gray-500">
                 Available API endpoints and their usage
               </CardDescription>
             </CardHeader>
@@ -453,6 +488,7 @@ export default function ManageAPI() {
                       onClick={() =>
                         copyToClipboard("https://api.rentcars.com/v1")
                       }
+                      className="border-gray-300 hover:bg-gray-200"
                     >
                       <Copy className="size-4" />
                     </Button>
@@ -460,14 +496,15 @@ export default function ManageAPI() {
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="font-semibold">Available Endpoints</h4>
+                  <h4 className={`${lusitana.className} text-lg`}>Available Endpoints</h4>
                   {API_DOCUMENTATION.endpoints.map((endpoint, i) => (
-                    <div key={i} className="border rounded-lg p-4">
+                    <div key={i} className="border border-gray-300 rounded-lg p-4">
                       <div className="flex items-start gap-3 mb-2">
                         <Badge
                           variant={
                             endpoint.method === "GET" ? "default" : "secondary"
                           }
+                          className={endpoint.method === "GET" ? "bg-blue-600 text-white" : "bg-gray-500 text-white"}
                         >
                           {endpoint.method}
                         </Badge>
@@ -475,11 +512,11 @@ export default function ManageAPI() {
                           <code className="text-sm font-semibold">
                             {endpoint.path}
                           </code>
-                          <p className="text-sm text-muted-foreground mt-1">
+                          <p className="text-sm text-muted-foreground mt-1 text-gray-500">
                             {endpoint.description}
                           </p>
                           {endpoint.parameters && (
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-xs text-muted-foreground mt-1 text-gray-500">
                               Params:{" "}
                               <code className="bg-gray-100 px-1 rounded">
                                 {endpoint.parameters}
@@ -492,9 +529,9 @@ export default function ManageAPI() {
                   ))}
                 </div>
 
-                <div className="bg-gray-50 border rounded-lg p-4">
-                  <h4 className="font-semibold mb-2">Authentication</h4>
-                  <p className="text-sm text-muted-foreground mb-3">
+                <div className="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                  <h4 className={`${lusitana.className} text-lg mb-2`}>Authentication</h4>
+                  <p className="text-sm text-muted-foreground mb-3 text-gray-500">
                     Include your API key in the request header:
                   </p>
                   <code className="block bg-white px-3 py-2 rounded text-sm">
@@ -515,7 +552,7 @@ export default function ManageAPI() {
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className=" border-gray-300">
                     <TableHead>Timestamp</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Endpoint</TableHead>
@@ -526,7 +563,7 @@ export default function ManageAPI() {
                 </TableHeader>
                 <TableBody>
                   {apiLogs.map((log) => (
-                    <TableRow key={log.id}>
+                    <TableRow key={log.id} className="border-gray-300 hover:bg-gray-100">
                       <TableCell className="text-sm">{log.timestamp}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{log.method}</Badge>

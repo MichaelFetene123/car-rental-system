@@ -40,7 +40,7 @@ This document is generated from the current codebase models/interfaces and mock 
 - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
 - `code VARCHAR(80) NOT NULL UNIQUE`
 - `name VARCHAR(120) NOT NULL`
-- `category VARCHAR(60) NOT NULL` 
+- `category VARCHAR(60) NOT NULL`
 ### Indexes
 - `UNIQUE(code)`
 - `INDEX(category)`

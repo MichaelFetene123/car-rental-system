@@ -10,7 +10,7 @@ const Sidenav = () => {
             <CarLogo />
         </div>
         </Link>
-        <div className="flex grow flex-row md:flex-col justify-between space-x-2 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-x-hidden">
+        <div className="flex grow flex-row md:flex-col justify-between space-x-2 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-x-hidden ">
             <NavLinks />
              <div className="hidden h-auto w-full grow rounded-md bg-gray-50 md:block border-b border-gray-300"></div>
              <form>

@@ -23,11 +23,8 @@ const Links = [
     href: "/dashboard/managePayments",
     icon: WalletCards,
   },
-  {name: "Pricing & Discounts", href: "/dashboard/pricingAndDiscounts", icon: DollarSign},
   {name: "Manage Locations", href: "/dashboard/manageLocations", icon: MapPin},
   {name: "Notifications", href: "/dashboard/Notifications", icon: Bell},
-  {name: "Integrations", href: "/dashboard/ManageIntegrations", icon: Zap},
-  {name: "Api & Webhooks", href: "/dashboard/ManageApi", icon: Code},
   { name: "Reports", href: "/dashboard/manageReports", icon: FileText },
 ];
 

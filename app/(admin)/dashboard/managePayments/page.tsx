@@ -182,7 +182,9 @@ export default function ManagePayments() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className={`${lusitana.className} text-2xl pb-2`}>Payment & Billing Management</h1>
+        <h1 className={`${lusitana.className} text-2xl pb-2`}>
+          Payment & Billing Management
+        </h1>
         <p className="text-muted-foreground">
           Track payments, process refunds, and manage invoices
         </p>
@@ -190,50 +192,60 @@ export default function ManagePayments() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="size-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-blue-800">
+              Total Revenue
+            </CardTitle>
+            <DollarSign className="size-4 text-blue-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="text-blue-900">
+            <div className="text-2xl font-bold text-blue-900">
               ${totalRevenue.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Completed payments</p>
+            <p className="text-xs text-blue-700">Completed payments</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <AlertCircle className="size-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium text-emerald-800">
+              Pending
+            </CardTitle>
+            <AlertCircle className="size-4 text-emerald-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="text-emerald-900">
+            <div className="text-2xl font-bold text-emerald-900">
               ${pendingAmount.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Awaiting payment</p>
+            <p className="text-xs text-emerald-700">Awaiting payment</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Refunded</CardTitle>
-            <RefreshCw className="size-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-amber-800">
+              Refunded
+            </CardTitle>
+            <RefreshCw className="size-4 text-amber-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="text-amber-900">
+            <div className="text-2xl font-bold text-amber-900">
               ${refundedAmount.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Total refunds</p>
+            <p className="text-xs text-amber-700">Total refunds</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-rose-50 border-rose-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-            <Receipt className="size-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-rose-800">
+              Transactions
+            </CardTitle>
+            <Receipt className="size-4 text-rose-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{payments.length}</div>
-            <p className="text-xs text-muted-foreground">All time</p>
+          <CardContent className="text-rose-900">
+            <div className="text-2xl font-bold text-rose-900">
+              {payments.length}
+            </div>
+            <p className="text-xs text-rose-700">All time</p>
           </CardContent>
         </Card>
       </div>
@@ -404,8 +416,12 @@ export default function ManagePayments() {
             >
               Cancel
             </Button>
-            <Button onClick={handleRefund}
-            className="bg-blue-600 hover:bg-blue-700 text-white">Process Refund</Button>
+            <Button
+              onClick={handleRefund}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Process Refund
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

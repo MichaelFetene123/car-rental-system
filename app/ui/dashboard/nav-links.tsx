@@ -1,8 +1,19 @@
-"use client"
-import Link from "next/link"; 
+"use client";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { LayoutDashboard, Car, Calendar , Users, FileText, Shield, WalletCards, DollarSign, MapPin, Bell, Zap, Code , } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Car,
+  Calendar,
+  Users,
+  FileText,
+  Shield,
+  WalletCards,
+  MapPin,
+  Bell,
+  Tags,
+} from "lucide-react";
 
 const Links = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -11,6 +22,11 @@ const Links = [
     name: "Manage Bookings",
     href: "/dashboard/manageBookings",
     icon: Calendar,
+  },
+  {
+    name: "Manage Categories",
+    href: "/dashboard/manageCategories",
+    icon: Tags,
   },
   { name: "Manage Users", href: "/dashboard/manageUsers", icon: Users },
   {
@@ -23,13 +39,16 @@ const Links = [
     href: "/dashboard/managePayments",
     icon: WalletCards,
   },
-  {name: "Manage Locations", href: "/dashboard/manageLocations", icon: MapPin},
-  {name: "Notifications", href: "/dashboard/Notifications", icon: Bell},
+  {
+    name: "Manage Locations",
+    href: "/dashboard/manageLocations",
+    icon: MapPin,
+  },
+  { name: "Notifications", href: "/dashboard/Notifications", icon: Bell },
   { name: "Reports", href: "/dashboard/manageReports", icon: FileText },
 ];
 
-
-const NavLinks = () =>{
+const NavLinks = () => {
   const pathname = usePathname();
   return (
     <>
@@ -39,11 +58,12 @@ const NavLinks = () =>{
           <Link
             key={link.name}
             href={link.href}
-            className={clsx("flex h-[45px] grow items-center justify-center gap-2 rounded-md bg-gray-50 p-3 text-sm font-medium hover:bg-sky-100 hover:text-blue-600 md:flex-none md:justify-start md:p-2 md:px-3", 
+            className={clsx(
+              "flex h-11 grow items-center justify-center gap-2 rounded-md bg-gray-50 p-3 text-sm font-medium hover:bg-sky-100 hover:text-blue-600 md:flex-none md:justify-start md:p-2 md:px-3",
               {
-              "bg-sky-100 text-blue-600": pathname === link.href,
-              }
-          )}
+                "bg-sky-100 text-blue-600": pathname === link.href,
+              },
+            )}
           >
             <LinkIcon className="w-5" />
             <p className="hidden md:block">{link.name}</p>
@@ -52,6 +72,6 @@ const NavLinks = () =>{
       })}
     </>
   );
-}
+};
 
 export default NavLinks;

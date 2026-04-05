@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Label } from "@/app/ui/lable";
+import { Textarea } from "@/app/ui/textarea";
 import {
   Table,
   TableBody,
@@ -44,6 +45,7 @@ export default function ManageCars() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
+    fuelType: "",
     category: "",
     price: "",
     status: "available" as Car["status"],
@@ -51,6 +53,7 @@ export default function ManageCars() {
     year: "",
     transmission: "",
     seats: "",
+    description: "",
   });
 
   const filteredCars = cars.filter(
@@ -63,6 +66,7 @@ export default function ManageCars() {
     setEditingCar(null);
     setFormData({
       name: "",
+      fuelType: "",
       category: "",
       price: "",
       status: "available",
@@ -70,6 +74,7 @@ export default function ManageCars() {
       year: "",
       transmission: "",
       seats: "",
+      description: "",
     });
     setIsDialogOpen(true);
   };
@@ -78,6 +83,7 @@ export default function ManageCars() {
     setEditingCar(car);
     setFormData({
       name: car.name,
+      fuelType: car.fuelType || "",
       category: car.category,
       price: car.price.toString(),
       status: car.status,
@@ -85,6 +91,7 @@ export default function ManageCars() {
       year: car.year.toString(),
       transmission: car.transmission,
       seats: car.seats.toString(),
+      description: car.description || "",
     });
     setIsDialogOpen(true);
   };
@@ -211,6 +218,18 @@ export default function ManageCars() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="fuelType">Fuel Type</Label>
+                  <Input
+                    id="fuelType"
+                    value={formData.fuelType}
+                    onChange={(e) =>
+                      setFormData({ ...formData, fuelType: e.target.value })
+                    }
+                    placeholder="e.g. Gasoline, Diesel, Electric"
+                    className="border-gray-500"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="price">Price per Day ($)</Label>
                   <Input
                     id="price"
@@ -287,6 +306,18 @@ export default function ManageCars() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="Write car description"
+                  className="border-gray-500 min-h-24"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="image">Image URL</Label>

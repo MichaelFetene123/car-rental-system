@@ -180,44 +180,56 @@ export default function ManageNotifications() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sent</CardTitle>
-            <CheckCircle2 className="size-4 text-green-600" />
+            <CardTitle className="text-sm font-medium text-blue-800">
+              Total Sent
+            </CardTitle>
+            <CheckCircle2 className="size-4 text-blue-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalSent}</div>
-            <p className="text-xs text-muted-foreground">All notifications</p>
+          <CardContent className="text-blue-900">
+            <div className="text-2xl font-bold text-blue-900">{totalSent}</div>
+            <p className="text-xs text-blue-700">All notifications</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Emails Sent</CardTitle>
-            <Mail className="size-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-emerald-800">
+              Emails Sent
+            </CardTitle>
+            <Mail className="size-4 text-emerald-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{emailsSent}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+          <CardContent className="text-emerald-900">
+            <div className="text-2xl font-bold text-emerald-900">
+              {emailsSent}
+            </div>
+            <p className="text-xs text-emerald-700">This month</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">SMS Sent</CardTitle>
-            <MessageSquare className="size-4 text-green-600" />
+            <CardTitle className="text-sm font-medium text-amber-800">
+              SMS Sent
+            </CardTitle>
+            <MessageSquare className="size-4 text-amber-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{smsSent}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+          <CardContent className="text-amber-900">
+            <div className="text-2xl font-bold text-amber-900">{smsSent}</div>
+            <p className="text-xs text-amber-700">This month</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-rose-50 border-rose-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed</CardTitle>
-            <Bell className="size-4 text-red-600" />
+            <CardTitle className="text-sm font-medium text-rose-800">
+              Failed
+            </CardTitle>
+            <Bell className="size-4 text-rose-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalFailed}</div>
-            <p className="text-xs text-muted-foreground">Needs attention</p>
+          <CardContent className="text-rose-900">
+            <div className="text-2xl font-bold text-rose-900">
+              {totalFailed}
+            </div>
+            <p className="text-xs text-rose-700">Needs attention</p>
           </CardContent>
         </Card>
       </div>
@@ -305,7 +317,7 @@ export default function ManageNotifications() {
                       <Switch
                         checked={template.enabled}
                         onCheckedChange={() => toggleTemplate(template.id)}
-                        className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 [&_[data-slot=switch-thumb]]:bg-white"
+                        className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 **:data-[slot=switch-thumb]:bg-white"
                       />
                       <Button
                         variant="outline"
@@ -415,14 +427,20 @@ export default function ManageNotifications() {
                   />
                 </div>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Email Settings</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Save Email Settings
+              </Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className={`${lusitana.className} text-xl`}>SMS Settings</CardTitle>
-              <CardDescription className="text-gray-500">Configure SMS gateway (Twilio)</CardDescription>
+              <CardTitle className={`${lusitana.className} text-xl`}>
+                SMS Settings
+              </CardTitle>
+              <CardDescription className="text-gray-500">
+                Configure SMS gateway (Twilio)
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -487,7 +505,9 @@ export default function ManageNotifications() {
                   />
                 </div>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save SMS Settings</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Save SMS Settings
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -495,8 +515,12 @@ export default function ManageNotifications() {
         <TabsContent value="logs">
           <Card>
             <CardHeader>
-              <CardTitle className={`${lusitana.className} text-xl`}>Notification Logs</CardTitle>
-              <CardDescription className="text-gray-500">Recent notification activity</CardDescription>
+              <CardTitle className={`${lusitana.className} text-xl`}>
+                Notification Logs
+              </CardTitle>
+              <CardDescription className="text-gray-500">
+                Recent notification activity
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -552,7 +576,9 @@ export default function ManageNotifications() {
         <TabsContent value="send">
           <Card>
             <CardHeader>
-              <CardTitle className={`${lusitana.className} text-xl`}>Send Custom Notification</CardTitle>
+              <CardTitle className={`${lusitana.className} text-xl`}>
+                Send Custom Notification
+              </CardTitle>
               <CardDescription className="text-gray-500">
                 Send a one-time notification to customers
               </CardDescription>
@@ -585,11 +611,18 @@ export default function ManageNotifications() {
               </div>
               <div className="space-y-2">
                 <Label>Subject</Label>
-                <Input placeholder="Enter email subject" className="border-gray-100 bg-gray-100 focus:border-gray-500" />
+                <Input
+                  placeholder="Enter email subject"
+                  className="border-gray-100 bg-gray-100 focus:border-gray-500"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Message</Label>
-                <Textarea placeholder="Enter your message..." rows={6} className="border-gray-100 bg-gray-100 focus:border-gray-500" />
+                <Textarea
+                  placeholder="Enter your message..."
+                  rows={6}
+                  className="border-gray-100 bg-gray-100 focus:border-gray-500"
+                />
               </div>
               <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                 <Send className="size-4 mr-2" />

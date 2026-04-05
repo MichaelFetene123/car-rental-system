@@ -25,6 +25,7 @@ export type carTypeData = {
 export interface Car {
   id: string;
   name: string;
+  fuelType?: string;
   category: string;
   price: number;
   status: "available" | "rented" | "maintenance";
@@ -32,6 +33,7 @@ export interface Car {
   year: number;
   transmission: string;
   seats: number;
+  description?: string;
 }
 
 // Mock customers data

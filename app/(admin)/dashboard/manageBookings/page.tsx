@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { toast } from "sonner";
@@ -22,15 +22,10 @@ import {
   SelectValue,
 } from "@/app/ui/select";
 import { lusitana } from "@/app/ui/utils/fonts";
-import {initialBookings, Booking} from "@/app/lib/data"
-
-
-
-
-
+import { initialBookings, Booking } from "@/app/lib/data";
 
 const ManageBookingsPage = () => {
- const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -39,18 +34,20 @@ const ManageBookingsPage = () => {
       booking.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       booking.carName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       booking.id.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus =
       statusFilter === "all" || booking.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
   const handleApprove = (id: string) => {
     setBookings(
       bookings.map((booking) =>
-        booking.id === id ? { ...booking, status: "approved" as const } : booking
-      )
+        booking.id === id
+          ? { ...booking, status: "approved" as const }
+          : booking,
+      ),
     );
     toast.success("Booking approved successfully");
   };
@@ -58,8 +55,10 @@ const ManageBookingsPage = () => {
   const handleReject = (id: string) => {
     setBookings(
       bookings.map((booking) =>
-        booking.id === id ? { ...booking, status: "rejected" as const } : booking
-      )
+        booking.id === id
+          ? { ...booking, status: "rejected" as const }
+          : booking,
+      ),
     );
     toast.error("Booking rejected");
   };
@@ -67,8 +66,10 @@ const ManageBookingsPage = () => {
   const handleCancel = (id: string) => {
     setBookings(
       bookings.map((booking) =>
-        booking.id === id ? { ...booking, status: "cancelled" as const } : booking
-      )
+        booking.id === id
+          ? { ...booking, status: "cancelled" as const }
+          : booking,
+      ),
     );
     toast.info("Booking cancelled");
   };
@@ -96,62 +97,67 @@ const ManageBookingsPage = () => {
     });
   };
 
-  return <div className="space-y-6 ">
-    <div>
-        <h1 className={`${lusitana.className} text-2xl mb-1`}>Manage Bookings</h1>
+  return (
+    <div className="space-y-6 ">
+      <div>
+        <h1 className={`${lusitana.className} text-2xl mb-1`}>
+          Manage Bookings
+        </h1>
         <p className="text-muted-foreground">
           Approve, reject, or cancel customer bookings
         </p>
       </div>
       {/* Booking Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-blue-800">
               Pending Bookings
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-blue-900">
+            <div className="text-3xl font-semibold text-blue-900">
               {bookings.filter((b) => b.status === "pending").length}
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-emerald-800">
               Approved Bookings
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-emerald-900">
+            <div className="text-3xl font-semibold text-emerald-900">
               {bookings.filter((b) => b.status === "approved").length}
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-amber-800">
               Completed Bookings
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-amber-900">
+            <div className="text-3xl font-semibold text-amber-900">
               {bookings.filter((b) => b.status === "completed").length}
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-rose-50 border-rose-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-rose-800">
               Total Revenue
             </CardTitle>
           </CardHeader>
-          <CardContent >
-            <div className="text-3xl font-semibold ">
+          <CardContent className="text-rose-900">
+            <div className="text-3xl font-semibold text-rose-900">
               $
               {bookings
-                .filter((b) => b.status === "approved" || b.status === "completed")
+                .filter(
+                  (b) => b.status === "approved" || b.status === "completed",
+                )
                 .reduce((sum, b) => sum + b.totalAmount, 0)
                 .toLocaleString()}
             </div>
@@ -174,12 +180,12 @@ const ManageBookingsPage = () => {
                   className="pl-9 border-gray-300 focus:border-2 focus:border-blue-500"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter} >
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-40 bg-gray-200 border-gray-300 focus:border-2 focus:border-blue-500">
                   <SelectValue placeholder="Filter status" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-none">
-                  <SelectItem value="all" >All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
@@ -209,7 +215,9 @@ const ManageBookingsPage = () => {
               <TableBody>
                 {filteredBookings.map((booking) => (
                   <TableRow key={booking.id} className="border-gray-200 ">
-                    <TableCell className="font-medium  ">{booking.id}</TableCell>
+                    <TableCell className="font-medium  ">
+                      {booking.id}
+                    </TableCell>
                     <TableCell>{booking.customerName}</TableCell>
                     <TableCell>{booking.carName}</TableCell>
                     <TableCell>{formatDate(booking.pickupDate)}</TableCell>
@@ -273,8 +281,8 @@ const ManageBookingsPage = () => {
           </div>
         </CardContent>
       </Card>
-
-  </div>;
+    </div>
+  );
 };
 
 export default ManageBookingsPage;

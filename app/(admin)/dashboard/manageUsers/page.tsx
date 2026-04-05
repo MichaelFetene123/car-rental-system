@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
@@ -34,7 +34,6 @@ import { toast } from "sonner";
 import { User, initialUsers } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
 
-
 export default function ManageUsers() {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,7 +51,7 @@ export default function ManageUsers() {
     (user) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.phone.includes(searchQuery)
+      user.phone.includes(searchQuery),
   );
 
   const handleAddUser = () => {
@@ -89,8 +88,8 @@ export default function ManageUsers() {
     if (editingUser) {
       setUsers(
         users.map((user) =>
-          user.id === editingUser.id ? { ...user, ...formData } : user
-        )
+          user.id === editingUser.id ? { ...user, ...formData } : user,
+        ),
       );
       toast.success("User updated successfully");
     } else {
@@ -147,48 +146,50 @@ export default function ManageUsers() {
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-blue-800">
               Total Users
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{users.length}</div>
+          <CardContent className="text-blue-900">
+            <div className="text-3xl font-semibold text-blue-900">
+              {users.length}
+            </div>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-emerald-800">
               Active Users
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-emerald-900">
+            <div className="text-3xl font-semibold text-emerald-900">
               {users.filter((u) => u.status === "active").length}
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-amber-800">
               Admins
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-amber-900">
+            <div className="text-3xl font-semibold text-amber-900">
               {users.filter((u) => u.role === "admin").length}
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-rose-50 border-rose-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-rose-800">
               Customers
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-rose-900">
+            <div className="text-3xl font-semibold text-rose-900">
               {users.filter((u) => u.role === "customer").length}
             </div>
           </CardContent>
@@ -305,7 +306,10 @@ export default function ManageUsers() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white">
+                <Button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-500 text-white"
+                >
                   {editingUser ? "Update User" : "Add User"}
                 </Button>
               </DialogFooter>
@@ -329,7 +333,7 @@ export default function ManageUsers() {
             </div>
           </div>
         </CardHeader>
-        <CardContent >
+        <CardContent>
           <div className="overflow-x-auto bg-white rounded-lg">
             <Table>
               <TableHeader>
@@ -389,7 +393,4 @@ export default function ManageUsers() {
       </Card>
     </div>
   );
-
-
-  };
-   
+}

@@ -386,7 +386,7 @@ export default function ManageLocations() {
                   <Switch
                     checked={location.isActive}
                     onCheckedChange={() => handleToggleActive(location.id)}
-                    className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 [&_[data-slot=switch-thumb]]:bg-white"
+                    className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 **:data-[slot=switch-thumb]:bg-white"
                   />
                   <span className="text-sm text-muted-foreground">Active</span>
                 </div>
@@ -414,36 +414,38 @@ export default function ManageLocations() {
 
       {/* Summary */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-blue-800">
               Total Locations
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{locations.length}</div>
+          <CardContent className="text-blue-900">
+            <div className="text-3xl font-semibold text-blue-900">
+              {locations.length}
+            </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-emerald-800">
               Active Locations
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-emerald-900">
+            <div className="text-3xl font-semibold text-emerald-900">
               {locations.filter((l) => l.isActive).length}
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-amber-800">
               Inactive Locations
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-amber-900">
+            <div className="text-3xl font-semibold text-amber-900">
               {locations.filter((l) => !l.isActive).length}
             </div>
           </CardContent>

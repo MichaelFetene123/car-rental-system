@@ -61,7 +61,10 @@ export default function Reports() {
             View daily and monthly revenue reports
           </p>
         </div>
-        <Button onClick={handleExport} className="bg-blue-600 hover:bg-blue-500 text-white">
+        <Button
+          onClick={handleExport}
+          className="bg-blue-600 hover:bg-blue-500 text-white"
+        >
           <Download className="size-4 mr-2" />
           Export Report
         </Button>
@@ -90,7 +93,7 @@ export default function Reports() {
           <SelectTrigger className="w-full sm:w-40 border-gray-300">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="border-gray-300 bg-white"   >
+          <SelectContent className="border-gray-300 bg-white">
             <SelectItem value="revenue">Revenue</SelectItem>
             <SelectItem value="bookings">Bookings</SelectItem>
             <SelectItem value="cars">Cars Rented</SelectItem>
@@ -100,50 +103,50 @@ export default function Reports() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-blue-800">
               Total Revenue
             </CardTitle>
-            <DollarSign className="size-5 text-green-600" />
+            <DollarSign className="size-5 text-blue-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-blue-900">
+            <div className="text-3xl font-semibold text-blue-900">
               ${totalRevenue.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-blue-700 mt-1">
               {reportType === "daily" ? "Last 9 days" : "Last 7 months"}
             </p>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-emerald-800">
               Total Bookings
             </CardTitle>
-            <Calendar className="size-5 text-blue-600" />
+            <Calendar className="size-5 text-emerald-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-emerald-900">
+            <div className="text-3xl font-semibold text-emerald-900">
               {totalBookings.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-emerald-700 mt-1">
               {reportType === "daily" ? "Last 9 days" : "Last 7 months"}
             </p>
           </CardContent>
         </Card>
-        <Card className="bg-gray-50 border-none shadow">
+        <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-amber-800">
               Avg {reportType === "daily" ? "Daily" : "Monthly"} Revenue
             </CardTitle>
-            <TrendingUp className="size-5 text-purple-600" />
+            <TrendingUp className="size-5 text-amber-700" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
+          <CardContent className="text-amber-900">
+            <div className="text-3xl font-semibold text-amber-900">
               ${avgDailyRevenue.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Average</p>
+            <p className="text-xs text-amber-700 mt-1">Average</p>
           </CardContent>
         </Card>
       </div>

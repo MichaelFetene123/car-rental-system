@@ -1,15 +1,33 @@
 'use client'
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Search, Car } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
+import { useState } from "react";
+import { getStoredToken, logoutUser } from "@/app/lib/auth";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
     
   const pathname = usePathname();
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => Boolean(getStoredToken()),
+  );
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isActive = (path: string) => pathname === path;
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    await logoutUser();
+    setIsAuthenticated(false);
+    setIsSigningOut(false);
+    router.push("/");
+    router.refresh();
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -80,13 +98,24 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               >
                 <Link href="/dashboard">Admin</Link>
               </Button>
-              <Button
-                size="sm"
-                asChild
-                className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-300"
-              >
-                <Link href="/login">Login</Link>
-              </Button>
+              {isAuthenticated ? (
+                <Button
+                  size="sm"
+                  className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-300"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? "Signing Out..." : "Sign Out"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  asChild
+                  className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-300"
+                >
+                  <Link href="/login">Login</Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>

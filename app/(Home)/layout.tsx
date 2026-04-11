@@ -5,7 +5,7 @@ import { Search, Car } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { useState } from "react";
-import { getStoredToken, logoutUser } from "@/app/lib/auth";
+import { getStoredToken, isCurrentUserAdmin, logoutUser } from "@/app/lib/auth";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
     
@@ -14,6 +14,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => Boolean(getStoredToken()),
   );
+  const [isAdmin, setIsAdmin] = useState(() => isCurrentUserAdmin());
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isActive = (path: string) => pathname === path;
@@ -24,6 +25,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     setIsSigningOut(true);
     await logoutUser();
     setIsAuthenticated(false);
+    setIsAdmin(false);
     setIsSigningOut(false);
     router.push("/");
     router.refresh();
@@ -90,14 +92,16 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                   className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-auto"
                 />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className=" border-blue-500 py-2 px-4"
-              >
-                <Link href="/dashboard">Admin</Link>
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className=" border-blue-500 py-2 px-4"
+                >
+                  <Link href="/dashboard">dashboard</Link>
+                </Button>
+              )}
               {isAuthenticated ? (
                 <Button
                   size="sm"

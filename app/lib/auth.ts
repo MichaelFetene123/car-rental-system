@@ -25,6 +25,10 @@ export type AuthResponse = {
   access_token: string;
 };
 
+type TokenPayload = {
+  roles?: unknown;
+};
+
 const parseErrorMessage = async (response: Response): Promise<string> => {
   try {
     const error = (await response.json()) as ApiErrorResponse;
@@ -132,6 +136,37 @@ export const clearStoredAuth = () => {
 
   document.cookie = `${AUTH_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=lax`;
 };
+
+const decodeBase64Url = (value: string): string => {
+  if (typeof window === 'undefined') return '';
+
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
+  return window.atob(`${normalized}${padding}`);
+};
+
+const parseTokenPayload = (token: string): TokenPayload | null => {
+  try {
+    const [, payload] = token.split('.');
+    if (!payload) return null;
+
+    return JSON.parse(decodeBase64Url(payload)) as TokenPayload;
+  } catch {
+    return null;
+  }
+};
+
+export const hasTokenRole = (token: string | null, role: string): boolean => {
+  if (!token) return false;
+
+  const payload = parseTokenPayload(token);
+  if (!payload || !Array.isArray(payload.roles)) return false;
+
+  return payload.roles.some((item) => item === role);
+};
+
+export const isCurrentUserAdmin = (): boolean =>
+  hasTokenRole(getStoredToken(), 'admin');
 
 export const logoutUser = async () => {
   const token = getStoredToken();

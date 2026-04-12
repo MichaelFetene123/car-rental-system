@@ -32,7 +32,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white  ">
       {/* Header */}
       <header className="bg-white border-b border-blue-50 shadow-sm shadow-blue-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

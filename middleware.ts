@@ -34,8 +34,8 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasToken = Boolean(token);
-  const authenticatedRedirectPath =
-    token && tokenHasRole(token, ADMIN_ROLE) ? "/dashboard" : "/cars";
+  const isAdmin = token ? tokenHasRole(token, ADMIN_ROLE) : false;
+  const authenticatedRedirectPath = isAdmin ? "/dashboard" : "/cars";
   const isPublicRoute = PUBLIC_ROUTES.has(pathname);
   const isDashboardRoute =
     pathname === "/dashboard" || pathname.startsWith("/dashboard/");
@@ -46,7 +46,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (token && isDashboardRoute && !tokenHasRole(token, ADMIN_ROLE)) {
+  if (token && isDashboardRoute && !isAdmin) {
     return NextResponse.redirect(new URL("/cars", request.url));
   }
 
@@ -57,7 +57,10 @@ export function middleware(request: NextRequest) {
   ) {
     return NextResponse.redirect(
       new URL(
-        request.nextUrl.searchParams.get("next") ?? authenticatedRedirectPath,
+        isAdmin
+          ? "/dashboard"
+          : (request.nextUrl.searchParams.get("next") ??
+              authenticatedRedirectPath),
         request.url,
       ),
     );

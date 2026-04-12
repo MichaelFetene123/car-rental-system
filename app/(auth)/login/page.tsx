@@ -51,7 +51,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-blue-50 flex items-center justify-center px-4 py-8">
+    <main className="min-h-screen bg-gradient-to-br from-blue-500 via-white to-blue-50 flex items-center justify-center px-4 py-8">
       <section className="w-full max-w-md rounded-2xl bg-white border border-blue-100 shadow-xl p-8">
         <Link href="/" className="inline-flex items-center gap-2 mb-8">
           <span className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center">

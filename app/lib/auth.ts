@@ -1,8 +1,9 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:5001';
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
+  "http://localhost:5001";
 
-const TOKEN_STORAGE_KEY = 'car_rental_access_token';
-export const AUTH_COOKIE_NAME = 'car_rental_access_token';
+const TOKEN_STORAGE_KEY = "car_rental_access_token";
+export const AUTH_COOKIE_NAME = "car_rental_access_token";
 const TOKEN_COOKIE_TTL_SECONDS = 60 * 60;
 
 type ApiErrorResponse = {
@@ -27,35 +28,33 @@ export type AuthResponse = {
 
 type TokenPayload = {
   roles?: unknown;
+  email?: unknown;
 };
 
 const parseErrorMessage = async (response: Response): Promise<string> => {
   try {
     const error = (await response.json()) as ApiErrorResponse;
     if (Array.isArray(error.message)) {
-      return error.message.join(', ');
+      return error.message.join(", ");
     }
-    if (typeof error.message === 'string') {
+    if (typeof error.message === "string") {
       return error.message;
     }
   } catch {
     // Ignore JSON parse errors and fallback to status text.
   }
 
-  return response.statusText || 'Request failed';
+  return response.statusText || "Request failed";
 };
 
-const requestJson = async <T>(
-  path: string,
-  init: RequestInit,
-): Promise<T> => {
+const requestJson = async <T>(path: string, init: RequestInit): Promise<T> => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(init.headers ?? {}),
     },
-    cache: 'no-store',
+    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -75,33 +74,33 @@ const requestJson = async <T>(
 };
 
 export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> =>
-  requestJson<AuthResponse>('/auth/login', {
-    method: 'POST',
+  requestJson<AuthResponse>("/auth/login", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 
 export const registerUser = async (payload: RegisterPayload): Promise<void> => {
-  await requestJson<void>('/auth/register', {
-    method: 'POST',
+  await requestJson<void>("/auth/register", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 };
 
 const readTokenFromCookie = (): string | null => {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === "undefined") return null;
 
   const cookie = document.cookie
-    .split('; ')
+    .split("; ")
     .find((entry) => entry.startsWith(`${AUTH_COOKIE_NAME}=`));
 
   if (!cookie) return null;
 
-  const [, value] = cookie.split('=');
+  const [, value] = cookie.split("=");
   return value ? decodeURIComponent(value) : null;
 };
 
 export const getStoredToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
 
   try {
     const localToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -114,7 +113,7 @@ export const getStoredToken = (): string | null => {
 };
 
 export const persistAccessToken = (token: string) => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   try {
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
@@ -126,7 +125,7 @@ export const persistAccessToken = (token: string) => {
 };
 
 export const clearStoredAuth = () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   try {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -138,16 +137,16 @@ export const clearStoredAuth = () => {
 };
 
 const decodeBase64Url = (value: string): string => {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === "undefined") return "";
 
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
   return window.atob(`${normalized}${padding}`);
 };
 
 const parseTokenPayload = (token: string): TokenPayload | null => {
   try {
-    const [, payload] = token.split('.');
+    const [, payload] = token.split(".");
     if (!payload) return null;
 
     return JSON.parse(decodeBase64Url(payload)) as TokenPayload;
@@ -166,7 +165,17 @@ export const hasTokenRole = (token: string | null, role: string): boolean => {
 };
 
 export const isCurrentUserAdmin = (): boolean =>
-  hasTokenRole(getStoredToken(), 'admin');
+  hasTokenRole(getStoredToken(), "admin");
+
+export const getCurrentUserEmail = (): string | null => {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  const payload = parseTokenPayload(token);
+  if (!payload || typeof payload.email !== "string") return null;
+
+  return payload.email;
+};
 
 export const logoutUser = async () => {
   const token = getStoredToken();
@@ -177,8 +186,8 @@ export const logoutUser = async () => {
   }
 
   try {
-    await requestJson<void>('/auth/logout', {
-      method: 'POST',
+    await requestJson<void>("/auth/logout", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
       },

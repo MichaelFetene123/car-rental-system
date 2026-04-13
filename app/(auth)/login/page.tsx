@@ -7,7 +7,7 @@ import { Car } from 'lucide-react';
 import { Button } from '@/app/ui/button';
 import { Input } from '@/app/ui/input';
 import { Label } from '@/app/ui/lable';
-import { loginUser, persistAccessToken } from '@/app/lib/auth';
+import { hasTokenRole, loginUser, persistAccessToken } from '@/app/lib/auth';
 
 const resolveNextPath = (nextPath: string | null) => {
   if (nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//')) {
@@ -36,8 +36,9 @@ export default function LoginPage() {
 
     try {
       const response = await loginUser({ email: email.trim(), password });
+      const isAdmin = hasTokenRole(response.access_token, 'admin');
       persistAccessToken(response.access_token);
-      router.push(redirectPath);
+      router.push(isAdmin ? '/dashboard' : redirectPath);
       router.refresh();
     } catch (submissionError) {
       setError(

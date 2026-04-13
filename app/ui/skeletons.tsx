@@ -54,7 +54,7 @@ export function TableCarsSkeleton() {
         <div className="bg-white px-6">
           <CarSkeleton />
           <CarSkeleton />
-          <CarSkeleton       />
+          <CarSkeleton />
           <CarSkeleton />
           <CarSkeleton />
         </div>
@@ -64,5 +64,36 @@ export function TableCarsSkeleton() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+
+
+export function HomeCarCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-100">
+      <div className="h-56 w-full animate-pulse bg-gray-200" />
+      <div className="p-5 space-y-3">
+        <div className="h-6 w-3/4 animate-pulse rounded bg-gray-200" />
+        <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200" />
+        <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HomeCarCardsSkeleton({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, index) => (
+        <HomeCarCardSkeleton key={`home-car-skeleton-${index}`} />
+      ))}
+    </>
   );
 }

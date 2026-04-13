@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { Search, Filter, Users, Fuel, Settings } from "lucide-react";
 // import PublicHeader from "@/app/ui/public-header";
-import { initialCars } from "@/app/lib/data";
+import type { BackendCar, PublicCar } from "@/app/lib/data";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -15,38 +15,119 @@ import {
 } from "@/app/ui/select";
 import { MapPin, Calendar } from "lucide-react";
 // import carImage from "figma:asset/4ad8fba70d6d1d6bb955a4c435e3235b26c7faa4.png";
-import { mockLocations, mockCars } from "@/app/lib/mockData";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Badge } from "@/app/ui/badge";
 import { Card } from "@/app/ui/card";
+import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
 
-const carImages = [
-  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMEJNVyUyMHNwb3J0JTIwY2FyJTIwcm9hZHxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1606173929045-3dd85676897b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibHVlJTIwQk1XJTIwbHV4dXJ5JTIwY2FyJTIwb2NlYW58ZW58MXx8fHwxNzcxODQ3NjEzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1764045565546-a5a8bf80fbec?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMFRlc2xhJTIwZWxlY3RyaWMlMjBjYXIlMjBtb3VudGFpbnxlbnwxfHx8fDE3NzE4NDc2MTR8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1659083934189-ebc3cfd8d4c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBzaWx2ZXIlMjBzZWRhbiUyMGNhcnxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMEJNVyUyMHNwb3J0JTIwY2FyJTIwcm9hZHxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1606173929045-3dd85676897b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibHVlJTIwQk1XJTIwbHV4dXJ5JTIwY2FyJTIwb2NlYW58ZW58MXx8fHwxNzcxODQ3NjEzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-];
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
+  "http://localhost:5001";
+const HOME_RECENT_CARS_LIMIT = 6;
+
+const fetchPublicCars = async (): Promise<PublicCar[]> => {
+  const response = await fetch(`${API_BASE_URL}/cars`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Unable to load cars from server (${response.status}). ${errorText}`,
+    );
+  }
+
+  const backendCars = (await response.json()) as BackendCar[];
+  return backendCars.map((car) => ({
+    id: car.id,
+    name: car.name,
+    year: car.year,
+    type: car.category?.name ?? "Other",
+    location: car.homeLocation?.name ?? "Unknown",
+    seats: car.seats,
+    fuelType: car.fuelType ?? "Unknown",
+    transmission: car.transmission,
+    pricePerDay: Number(car.pricePerDay),
+    imageUrl: car.imageUrl ?? "",
+    available: car.status === "available",
+    description: undefined,
+  }));
+};
+
+const fallbackCarImage =
+  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 
 export default function HomePage() {
   const router = useRouter();
+  const [cars, setCars] = useState<PublicCar[]>([]);
+  const [isLoadingCars, setIsLoadingCars] = useState(true);
+  const [carsError, setCarsError] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const handleSearch = () => {
-    router.push("/cars");
-  };
- const filteredCars = mockCars.filter(
-    (car) =>
-      car.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      car.type.toLowerCase().includes(searchQuery.toLowerCase()),
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchCars = async () => {
+      setIsLoadingCars(true);
+      setCarsError("");
+
+      try {
+        const backendCars = await fetchPublicCars();
+
+        if (!isMounted) return;
+
+        setCars(backendCars.slice(0, HOME_RECENT_CARS_LIMIT));
+      } catch (error) {
+        if (!isMounted) return;
+        setCarsError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load cars. Please try again.",
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoadingCars(false);
+        }
+      }
+    };
+
+    fetchCars();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const availableLocations = useMemo(
+    () =>
+      Array.from(new Set(cars.map((car) => car.location))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [cars],
   );
 
+  const filteredCars = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const normalizedLocation = pickupLocation.trim().toLowerCase();
+
+    return cars.filter((car) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        car.name.toLowerCase().includes(normalizedQuery) ||
+        car.type.toLowerCase().includes(normalizedQuery);
+
+      const matchesLocation =
+        !normalizedLocation ||
+        car.location.toLowerCase().includes(normalizedLocation);
+
+      return matchesQuery && matchesLocation;
+    });
+  }, [cars, searchQuery, pickupLocation]);
 
   return (
     <section>
@@ -124,6 +205,19 @@ export default function HomePage() {
             <div className="mt-20 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom duration-700 delay-300">
               <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl shadow-blue-200 border border-gray-100/50 p-8 hover:shadow-3xl transition-shadow duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Search className="w-4 h-4 text-blue-600" />
+                      Search car
+                    </label>
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Type car name or type"
+                      className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
+                    />
+                  </div>
+
                   {/* Location */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
@@ -138,7 +232,7 @@ export default function HomePage() {
                         <SelectValue placeholder="Select your city" />
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        {mockLocations.map((location) => (
+                        {availableLocations.map((location) => (
                           <SelectItem key={location} value={location}>
                             {location}
                           </SelectItem>
@@ -174,15 +268,6 @@ export default function HomePage() {
                       className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
                     />
                   </div>
-
-                  {/* Search Button */}
-                  <Button
-                    onClick={handleSearch}
-                    className="h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-300"
-                    size="lg"
-                  >
-                    Search
-                  </Button>
                 </div>
               </div>
             </div>
@@ -199,55 +284,65 @@ export default function HomePage() {
             </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCars.map((car, index) => (
-                <Card
-                  key={car.id}
-                  className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-                  onClick={() => router.push(`/cars/${car.id}`)}
-                >
-                  <div className="relative">
-                    <ImageWithFallback
-                      src={carImages[index % carImages.length]}
-                      alt={car.name}
-                      className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    {car.available && (
-                      <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
-                        Available Now
-                      </Badge>
-                    )}
-                    <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
-                      ${car.pricePerDay}/day
-                    </div>
-                  </div>
+              {carsError ? (
+                <p className="col-span-full rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {carsError}
+                </p>
+              ) : null}
 
-                  <div className="p-5">
-                    <h3 className="text-xl font-semibold mb-1">{car.name}</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      {car.type} {car.year}
-                    </p>
+              {isLoadingCars
+                ? <HomeCarCardsSkeleton count={HOME_RECENT_CARS_LIMIT} />
+                : filteredCars.map((car) => (
+                    <Card
+                      key={car.id}
+                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                      onClick={() => router.push(`/cars/${car.id}`)}
+                    >
+                      <div className="relative">
+                        <ImageWithFallback
+                          src={car.imageUrl || fallbackCarImage}
+                          alt={car.name}
+                          className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        {car.available && (
+                          <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
+                            Available Now
+                          </Badge>
+                        )}
+                        <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
+                          ${car.pricePerDay}/day
+                        </div>
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        <span>{car.seats} Seats</span>
+                      <div className="p-5">
+                        <h3 className="text-xl font-semibold mb-1">
+                          {car.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                          {car.type} {car.year}
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            <span>{car.seats} Seats</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Fuel className="w-4 h-4" />
+                            <span>{car.fuelType}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Settings className="w-4 h-4" />
+                            <span>{car.transmission}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            <span>{car.location}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Fuel className="w-4 h-4" />
-                        <span>{car.fuelType}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Settings className="w-4 h-4" />
-                        <span>{car.transmission}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
-                        <span>{car.location}</span>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                    </Card>
+                  ))}
             </div>
           </div>
         </section>

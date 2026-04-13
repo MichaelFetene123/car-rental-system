@@ -5,7 +5,12 @@ import { Search, Car } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { useState } from "react";
-import { getStoredToken, isCurrentUserAdmin, logoutUser } from "@/app/lib/auth";
+import {
+  getCurrentUserEmail,
+  getStoredToken,
+  isCurrentUserAdmin,
+  logoutUser,
+} from "@/app/lib/auth";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
     
@@ -15,9 +20,15 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     () => Boolean(getStoredToken()),
   );
   const [isAdmin, setIsAdmin] = useState(() => isCurrentUserAdmin());
+  const [userEmail, setUserEmail] = useState(() => getCurrentUserEmail());
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isActive = (path: string) => pathname === path;
+  const displayEmail = userEmail
+    ? userEmail.length > 18
+      ? `${userEmail.slice(0, 18)}...`
+      : userEmail
+    : "";
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -26,6 +37,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     await logoutUser();
     setIsAuthenticated(false);
     setIsAdmin(false);
+    setUserEmail(null);
     setIsSigningOut(false);
     router.push("/");
     router.refresh();
@@ -103,14 +115,29 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 </Button>
               )}
               {isAuthenticated ? (
-                <Button
-                  size="sm"
-                  className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-300"
-                  onClick={handleSignOut}
-                  disabled={isSigningOut}
-                >
-                  {isSigningOut ? "Signing Out..." : "Sign Out"}
-                </Button>
+                <>
+                  {userEmail && (
+                    <div
+                      className="hidden sm:flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5"
+                      title={userEmail}
+                    >
+                      <div className="h-7 w-7 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center uppercase">
+                        {userEmail.charAt(0)}
+                      </div>
+                      <span className="max-w-32 truncate text-sm font-medium text-blue-800">
+                        {displayEmail}
+                      </span>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-300"
+                    onClick={handleSignOut}
+                    disabled={isSigningOut}
+                  >
+                    {isSigningOut ? "Signing Out..." : "Sign Out"}
+                  </Button>
+                </>
               ) : (
                 <Button
                   size="sm"

@@ -36,6 +36,39 @@ export interface Car {
   description?: string;
 }
 
+export type PublicCar = {
+  id: string;
+  name: string;
+  year: number;
+  type: string;
+  location: string;
+  seats: number;
+  fuelType: string;
+  transmission: string;
+  pricePerDay: number;
+  imageUrl: string;
+  available: boolean;
+  description?: string;
+};
+
+export type BackendCar = {
+  id: string;
+  name: string;
+  year: number;
+  seats: number;
+  fuelType: string | null;
+  transmission: string;
+  pricePerDay: number | string;
+  imageUrl: string | null;
+  status: "available" | "rented" | "maintenance";
+  category?: {
+    name: string;
+  } | null;
+  homeLocation?: {
+    name: string;
+  } | null;
+};
+
 // Mock customers data
 export const customers = [
   { id: "1", name: "John Doe" },

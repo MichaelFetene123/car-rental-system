@@ -1,6 +1,4 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
-  "http://localhost:5001";
+import { API_BASE_URL } from "@/server/server";
 
 const TOKEN_STORAGE_KEY = "car_rental_access_token";
 export const AUTH_COOKIE_NAME = "car_rental_access_token";

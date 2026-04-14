@@ -1,11 +1,10 @@
 "use client";
-import Link from "next/link";
-import { Search, Filter, Users, Fuel, Settings } from "lucide-react";
+import { Search, Users, Fuel, Settings, MapPin, Calendar } from "lucide-react";
 // import PublicHeader from "@/app/ui/public-header";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -13,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/ui/select";
-import { MapPin, Calendar } from "lucide-react";
 // import carImage from "figma:asset/4ad8fba70d6d1d6bb955a4c435e3235b26c7faa4.png";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/ui/button";
@@ -21,15 +19,33 @@ import { Input } from "@/app/ui/input";
 import { Badge } from "@/app/ui/badge";
 import { Card } from "@/app/ui/card";
 import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
+import { API_BASE_URL } from "@/server/server";
+import { useQuery } from "@tanstack/react-query";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
-  "http://localhost:5001";
 const HOME_RECENT_CARS_LIMIT = 6;
+const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
 
-const fetchPublicCars = async (): Promise<PublicCar[]> => {
+const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
+  id: car.id,
+  name: car.name,
+  year: car.year,
+  category: car.category?.name ?? "Other",
+  location: car.homeLocation?.name ?? "Unknown",
+  seats: car.seats,
+  fuelType: car.fuelType ?? "Unknown",
+  transmission: car.transmission,
+  pricePerDay: Number(car.pricePerDay),
+  imageUrl: car.imageUrl ?? "",
+  available: car.status === "available",
+  description: undefined,
+});
+const fallbackCarImage =
+  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
+
+
+const fetchPublicCars = async (signal?: AbortSignal): Promise<PublicCar[]> => {
   const response = await fetch(`${API_BASE_URL}/cars`, {
-    cache: "no-store",
+    signal,
   });
 
   if (!response.ok) {
@@ -40,94 +56,78 @@ const fetchPublicCars = async (): Promise<PublicCar[]> => {
   }
 
   const backendCars = (await response.json()) as BackendCar[];
-  return backendCars.map((car) => ({
-    id: car.id,
-    name: car.name,
-    year: car.year,
-    type: car.category?.name ?? "Other",
-    location: car.homeLocation?.name ?? "Unknown",
-    seats: car.seats,
-    fuelType: car.fuelType ?? "Unknown",
-    transmission: car.transmission,
-    pricePerDay: Number(car.pricePerDay),
-    imageUrl: car.imageUrl ?? "",
-    available: car.status === "available",
-    description: undefined,
-  }));
+
+  return backendCars.map(mapBackendCarToPublicCar);
 };
 
-const fallbackCarImage =
-  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 
 export default function HomePage() {
   const router = useRouter();
-  const [cars, setCars] = useState<PublicCar[]>([]);
-  const [isLoadingCars, setIsLoadingCars] = useState(true);
-  const [carsError, setCarsError] = useState("");
-  const [pickupLocation, setPickupLocation] = useState("");
-  const [pickupDate, setPickupDate] = useState("");
-  const [returnDate, setReturnDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [fuelTypeFilter, setFuelTypeFilter] = useState("");
+  const [seatFilter, setSeatFilter] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const {
+    data: cars = [],
+    isPending: isLoadingCars,
+    error: carsError,
+  } = useQuery<PublicCar[], Error>({
+    queryKey: PUBLIC_CARS_QUERY_KEY,
+    queryFn: ({ signal }) => fetchPublicCars(signal),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-    const fetchCars = async () => {
-      setIsLoadingCars(true);
-      setCarsError("");
-
-      try {
-        const backendCars = await fetchPublicCars();
-
-        if (!isMounted) return;
-
-        setCars(backendCars.slice(0, HOME_RECENT_CARS_LIMIT));
-      } catch (error) {
-        if (!isMounted) return;
-        setCarsError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load cars. Please try again.",
-        );
-      } finally {
-        if (isMounted) {
-          setIsLoadingCars(false);
-        }
-      }
-    };
-
-    fetchCars();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const availableLocations = useMemo(
+  const availableCategories = useMemo(
     () =>
-      Array.from(new Set(cars.map((car) => car.location))).sort((a, b) =>
+      Array.from(new Set(cars.map((car) => car.category))).sort((a, b) =>
         a.localeCompare(b),
       ),
     [cars],
   );
 
+  const availableFuelTypes = useMemo(
+    () =>
+      Array.from(new Set(cars.map((car) => car.fuelType))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [cars],
+  );
+
+  const availableSeatCounts = useMemo(
+    () =>
+      Array.from(new Set(cars.map((car) => car.seats))).sort((a, b) => a - b),
+    [cars],
+  );
+
   const filteredCars = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    const normalizedLocation = pickupLocation.trim().toLowerCase();
+    const normalizedName = searchQuery.trim().toLowerCase();
+    const normalizedCategory = categoryFilter.trim().toLowerCase();
+    const normalizedFuelType = fuelTypeFilter.trim().toLowerCase();
+    const selectedSeats = seatFilter ? Number(seatFilter) : null;
 
     return cars.filter((car) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        car.name.toLowerCase().includes(normalizedQuery) ||
-        car.type.toLowerCase().includes(normalizedQuery);
+      const matchesName = !normalizedName || car.name.toLowerCase().includes(normalizedName);
 
-      const matchesLocation =
-        !normalizedLocation ||
-        car.location.toLowerCase().includes(normalizedLocation);
+      const matchesCategory = !normalizedCategory || car.category.toLowerCase().includes(normalizedCategory);
 
-      return matchesQuery && matchesLocation;
+      const matchesFuelType =
+        !normalizedFuelType ||
+        car.fuelType.toLowerCase().includes(normalizedFuelType);
+
+      const matchesSeats =
+        selectedSeats === null || car.seats === selectedSeats;
+
+      return matchesName && matchesCategory && matchesFuelType && matchesSeats;
     });
-  }, [cars, searchQuery, pickupLocation]);
+  }, [cars, searchQuery, categoryFilter, fuelTypeFilter, seatFilter]);
+
+  const visibleCars = useMemo(
+    () => filteredCars.slice(0, HOME_RECENT_CARS_LIMIT),
+    [filteredCars],
+  );
 
   return (
     <section>
@@ -208,65 +208,92 @@ export default function HomePage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                       <Search className="w-4 h-4 text-blue-600" />
-                      Search car
+                      Search by name
                     </label>
                     <Input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Type car name or type"
+                      placeholder="Type car name"
                       className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
                     />
                   </div>
 
-                  {/* Location */}
+                  {/* Category */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                      Location
+                      <Settings className="w-4 h-4 text-blue-600" />
+                      Category
                     </label>
                     <Select
-                      value={pickupLocation}
-                      onValueChange={setPickupLocation}
+                      value={categoryFilter || "all"}
+                      onValueChange={(value) =>
+                        setCategoryFilter(value === "all" ? "" : value)
+                      }
                     >
                       <SelectTrigger className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20">
-                        <SelectValue placeholder="Select your city" />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        {availableLocations.map((location) => (
-                          <SelectItem key={location} value={location}>
-                            {location}
+                        <SelectItem value="all">All categories</SelectItem>
+                        {availableCategories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* Pickup Date */}
+                  {/* Fuel Type */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-600" />
-                      Pickup date
+                      <Fuel className="w-4 h-4 text-blue-600" />
+                      Fuel type
                     </label>
-                    <Input
-                      type="date"
-                      value={pickupDate}
-                      onChange={(e) => setPickupDate(e.target.value)}
-                      className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
-                    />
+                    <Select
+                      value={fuelTypeFilter || "all"}
+                      onValueChange={(value) =>
+                        setFuelTypeFilter(value === "all" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20">
+                        <SelectValue placeholder="Select fuel type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        <SelectItem value="all">All fuel types</SelectItem>
+                        {availableFuelTypes.map((fuelType) => (
+                          <SelectItem key={fuelType} value={fuelType}>
+                            {fuelType}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* Return Date */}
+                  {/* Seats */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-600" />
-                      Return date
+                      <Users className="w-4 h-4 text-blue-600" />
+                      Seats
                     </label>
-                    <Input
-                      type="date"
-                      value={returnDate}
-                      onChange={(e) => setReturnDate(e.target.value)}
-                      className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
-                    />
+                    <Select
+                      value={seatFilter || "all"}
+                      onValueChange={(value) =>
+                        setSeatFilter(value === "all" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20">
+                        <SelectValue placeholder="Select seats" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        <SelectItem value="all">All seats</SelectItem>
+                        {availableSeatCounts.map((seats) => (
+                          <SelectItem key={seats} value={String(seats)}>
+                            {seats} seats
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -286,63 +313,63 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {carsError ? (
                 <p className="col-span-full rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {carsError}
+                  {carsError.message}
                 </p>
               ) : null}
 
-              {isLoadingCars
-                ? <HomeCarCardsSkeleton count={HOME_RECENT_CARS_LIMIT} />
-                : filteredCars.map((car) => (
-                    <Card
-                      key={car.id}
-                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-                      onClick={() => router.push(`/cars/${car.id}`)}
-                    >
-                      <div className="relative">
-                        <ImageWithFallback
-                          src={car.imageUrl || fallbackCarImage}
-                          alt={car.name}
-                          className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        {car.available && (
-                          <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
-                            Available Now
-                          </Badge>
-                        )}
-                        <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
-                          ${car.pricePerDay}/day
+              {isLoadingCars ? (
+                <HomeCarCardsSkeleton count={HOME_RECENT_CARS_LIMIT} />
+              ) : (
+                visibleCars.map((car) => (
+                  <Card
+                    key={car.id}
+                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                    onClick={() => router.push(`/cars/${car.id}`)}
+                  >
+                    <div className="relative">
+                      <ImageWithFallback
+                        src={car.imageUrl || fallbackCarImage}
+                        alt={car.name}
+                        className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      {car.available && (
+                        <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
+                          Available Now
+                        </Badge>
+                      )}
+                      <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
+                        ${car.pricePerDay}/day
+                      </div>
+                    </div>
+
+                    <div className="p-5">
+                      <h3 className="text-xl font-semibold mb-1">{car.name}</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        {car.category} {car.year}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          <span>{car.seats} Seats</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Fuel className="w-4 h-4" />
+                          <span>{car.fuelType}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Settings className="w-4 h-4" />
+                          <span>{car.transmission}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          <span>{car.location}</span>
                         </div>
                       </div>
-
-                      <div className="p-5">
-                        <h3 className="text-xl font-semibold mb-1">
-                          {car.name}
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                          {car.type} {car.year}
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4" />
-                            <span>{car.seats} Seats</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Fuel className="w-4 h-4" />
-                            <span>{car.fuelType}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Settings className="w-4 h-4" />
-                            <span>{car.transmission}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
-                            <span>{car.location}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                    </div>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
         </section>

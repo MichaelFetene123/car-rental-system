@@ -40,7 +40,7 @@ export type PublicCar = {
   id: string;
   name: string;
   year: number;
-  type: string;
+  category: string;
   location: string;
   seats: number;
   fuelType: string;

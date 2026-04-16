@@ -1,7 +1,9 @@
 import { API_BASE_URL } from "@/server/server";
 
 const TOKEN_STORAGE_KEY = "car_rental_access_token";
+
 export const AUTH_COOKIE_NAME = "car_rental_access_token";
+
 const TOKEN_COOKIE_TTL_SECONDS = 60 * 60;
 
 type ApiErrorResponse = {

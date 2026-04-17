@@ -42,6 +42,7 @@ const parseErrorMessage = async (response: Response): Promise<string> => {
     }
   } catch {
     // Ignore JSON parse errors and fallback to status text.
+    
   }
 
   return response.statusText || "Request failed";

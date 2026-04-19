@@ -32,7 +32,6 @@ export default function LoginPage() {
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    ddd
     setIsSubmitting(true);
 
     try {

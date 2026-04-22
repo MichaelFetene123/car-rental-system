@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Calendar,
   MapPin,
   Badge as BadgeIcon,
   Edit,
-  X,
   AlertCircle,
   Trash2,
 } from "lucide-react";
@@ -31,74 +30,190 @@ import {
   SelectValue,
 } from "@/app/ui/select";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
-import {
-  mockBookings as initialMockBookings,
-  mockLocations,
-  Booking,
-} from "@/app/lib/mockData";
+import { MyBookingsSkeleton } from "@/app/ui/skeletons";
+import { API_BASE_URL } from "@/server/server";
+import { getStoredToken } from "@/app/lib/auth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-const bookingImages = [
-  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMEJNVyUyMHNwb3J0JTIwY2FyJTIwcm9hZHxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1606173929045-3dd85676897b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibHVlJTIwQk1XJTIwbHV4dXJ5JTIwY2FyJTIwb2NlYW58ZW58MXx8fHwxNzcxODQ3NjEzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-];
+type BookingStatus = "confirmed" | "pending" | "cancelled";
 
-// interface Booking {
-//   id: string;
-//   carName: string;
-//   carYear: string;
-//   carType: string;
-//   rentalPeriod: string;
-//   pickupLocation: string;
-//   returnLocation: string;
-//   bookedOn: string;
-//   totalPrice: number;
-//   status: "confirmed" | "pending" | "cancelled";
-//   pickupDate?: string;
-//   returnDate?: string;
-// }
+type Booking = {
+  id: string;
+  carId: string;
+  carName: string;
+  carImage: string;
+  carYear: number;
+  carType: string;
+  status: BookingStatus;
+  rentalPeriod: string;
+  pickupDate: string;
+  returnDate: string;
+  pickupLocation: string;
+  returnLocation: string;
+  pickupLocationId: string;
+  returnLocationId: string;
+  totalPrice: number;
+  bookedOn: string;
+};
+
+type BackendBookingStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "completed";
+
+type BackendBooking = {
+  id: string;
+  carId: string;
+  pickupAt: string;
+  returnAt: string;
+  bookedAt: string;
+  totalAmount: number | string;
+  status: BackendBookingStatus;
+  carNameSnapshot: string | null;
+  carTypeSnapshot: string | null;
+  carYearSnapshot: number | null;
+  carImageSnapshot: string | null;
+  pickupLocation?: { id: string; name: string } | null;
+  returnLocation?: { id: string; name: string } | null;
+};
+
+type UpdateBookingPayload = {
+  bookingId: string;
+  pickupAt: string;
+  returnAt: string;
+  pickupLocationId: string;
+  returnLocationId: string;
+};
+
+const fallbackBookingImage =
+  "https://images.unsplash.com/photo-1549924231-f129b911e442?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
+
+const parseErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const error = (await response.json()) as { message?: string | string[] };
+    if (Array.isArray(error.message)) return error.message.join(", ");
+    if (typeof error.message === "string") return error.message;
+  } catch {
+    // Fall back to status text when body is not valid JSON.
+  }
+
+  return response.statusText || "Request failed";
+};
+
+const formatDateForDisplay = (dateStr: string): string => {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
+const mapBackendStatusToUi = (status: BackendBookingStatus): BookingStatus => {
+  if (status === "approved") return "confirmed";
+  if (status === "pending") return "pending";
+  return "cancelled";
+};
+
+const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => ({
+  id: booking.id,
+  carId: booking.carId,
+  carName: booking.carNameSnapshot ?? "Unknown Car",
+  carImage: booking.carImageSnapshot ?? "",
+  carYear: booking.carYearSnapshot ?? new Date().getFullYear(),
+  carType: booking.carTypeSnapshot ?? "Unknown",
+  status: mapBackendStatusToUi(booking.status),
+  rentalPeriod: `${formatDateForDisplay(booking.pickupAt)} - ${formatDateForDisplay(booking.returnAt)}`,
+  pickupDate: booking.pickupAt,
+  returnDate: booking.returnAt,
+  pickupLocation: booking.pickupLocation?.name ?? "Unknown",
+  returnLocation: booking.returnLocation?.name ?? "Unknown",
+  pickupLocationId: booking.pickupLocation?.id ?? "",
+  returnLocationId: booking.returnLocation?.id ?? "",
+  totalPrice: Number(booking.totalAmount),
+  bookedOn: formatDateForDisplay(booking.bookedAt),
+});
+
+const toBookingIsoDate = (dateOnly: string) =>
+  new Date(`${dateOnly}T09:00:00.000Z`).toISOString();
+
+const fetchMyBookings = async (): Promise<Booking[]> => {
+  const token = getStoredToken();
+
+  if (!token) {
+    throw new Error("Please log in to view your bookings.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/bookings/me`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+
+  const backendBookings = (await response.json()) as BackendBooking[];
+  return backendBookings.map(mapBackendBookingToUiBooking);
+};
 
 export default function MyBookingsPage() {
-  const [bookings, setBookings] = useState<Booking[]>(
-    initialMockBookings as Booking[],
-  );
+  const queryClient = useQueryClient();
+
+  const {
+    data: bookings = [],
+    isPending: isLoadingBookings,
+    error: bookingsError,
+  } = useQuery<Booking[], Error>({
+    queryKey: ["myBookings"],
+    queryFn: fetchMyBookings,
+    staleTime: Infinity,
+    gcTime: 15 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Form state for editing
+  const locationOptions = useMemo(() => {
+    const locationMap = new Map<string, string>();
+
+    bookings.forEach((booking) => {
+      if (booking.pickupLocationId) {
+        locationMap.set(booking.pickupLocationId, booking.pickupLocation);
+      }
+      if (booking.returnLocationId) {
+        locationMap.set(booking.returnLocationId, booking.returnLocation);
+      }
+    });
+
+    return Array.from(locationMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [bookings]);
+
   const [editForm, setEditForm] = useState({
     pickupDate: "",
     returnDate: "",
-    pickupLocation: "",
-    returnLocation: "",
+    pickupLocationId: "",
+    returnLocationId: "",
   });
 
-  const handleEditClick = (booking: Booking) => {
-    setEditingBooking(booking);
-
-    // Parse dates from rental period if available
-    const dates = booking.rentalPeriod.split(" - ");
-    const pickupDate = dates[0] ? convertToDateInput(dates[0]) : "";
-    const returnDate = dates[1] ? convertToDateInput(dates[1]) : "";
-
-    setEditForm({
-      pickupDate: pickupDate,
-      returnDate: returnDate,
-      pickupLocation: booking.pickupLocation,
-      returnLocation: booking.returnLocation,
-    });
-    setIsEditDialogOpen(true);
-  };
-
-  const handleDeleteClick = (booking: Booking) => {
-    setDeletingBooking(booking);
-    setIsDeleteDialogOpen(true);
-  };
-
   const convertToDateInput = (dateStr: string): string => {
-    // Convert "Feb 15, 2026" to "2026-02-15"
     try {
       const date = new Date(dateStr);
       return date.toISOString().split("T")[0];
@@ -107,117 +222,188 @@ export default function MyBookingsPage() {
     }
   };
 
-  const formatDateForDisplay = (dateStr: string): string => {
-    // Convert "2026-02-15" to "Feb 15, 2026"
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
+  const handleEditClick = (booking: Booking) => {
+    setEditingBooking(booking);
+
+    const dates = booking.rentalPeriod.split(" - ");
+    const pickupDate = dates[0] ? convertToDateInput(dates[0]) : "";
+    const returnDate = dates[1] ? convertToDateInput(dates[1]) : "";
+
+    setEditForm({
+      pickupDate,
+      returnDate,
+      pickupLocationId: booking.pickupLocationId,
+      returnLocationId: booking.returnLocationId,
+    });
+
+    setIsEditDialogOpen(true);
   };
+
+  const handleDeleteClick = (booking: Booking) => {
+    setDeletingBooking(booking);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const updateBookingMutation = useMutation({
+    mutationFn: async (payload: UpdateBookingPayload) => {
+      const token = getStoredToken();
+      if (!token) throw new Error("Authentication required");
+
+      const response = await fetch(`${API_BASE_URL}/bookings`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, payload) => {
+      queryClient.setQueryData<Booking[]>(["myBookings"], (current = []) => {
+        const pickupLocationName =
+          current.find((b) => b.pickupLocationId === payload.pickupLocationId)
+            ?.pickupLocation ??
+          current.find((b) => b.returnLocationId === payload.pickupLocationId)
+            ?.returnLocation ??
+          "Unknown";
+
+        const returnLocationName =
+          current.find((b) => b.returnLocationId === payload.returnLocationId)
+            ?.returnLocation ??
+          current.find((b) => b.pickupLocationId === payload.returnLocationId)
+            ?.pickupLocation ??
+          "Unknown";
+
+        return current.map((booking) => {
+          if (booking.id !== payload.bookingId) return booking;
+
+          return {
+            ...booking,
+            pickupDate: payload.pickupAt,
+            returnDate: payload.returnAt,
+            rentalPeriod: `${formatDateForDisplay(payload.pickupAt)} - ${formatDateForDisplay(payload.returnAt)}`,
+            pickupLocationId: payload.pickupLocationId,
+            returnLocationId: payload.returnLocationId,
+            pickupLocation: pickupLocationName,
+            returnLocation: returnLocationName,
+          };
+        });
+      });
+
+      toast.success("Booking updated successfully.");
+      setIsEditDialogOpen(false);
+      setEditingBooking(null);
+    },
+    onError: (error) => {
+      toast.error(
+        `Failed to update booking. ${error instanceof Error ? error.message : ""}`,
+      );
+    },
+  });
+
+  const deleteBookingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const token = getStoredToken();
+      if (!token) throw new Error("Authentication required");
+
+      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+      }
+    },
+    onSuccess: (_data, bookingId) => {
+      queryClient.setQueryData<Booking[]>(["myBookings"], (current = []) =>
+        current.filter((booking) => booking.id !== bookingId),
+      );
+
+      toast.success("Booking deleted successfully.");
+      setIsDeleteDialogOpen(false);
+      setDeletingBooking(null);
+    },
+    onError: (error) => {
+      toast.error(
+        `Failed to delete booking. ${error instanceof Error ? error.message : ""}`,
+      );
+    },
+  });
 
   const handleSaveEdit = () => {
     if (!editingBooking) return;
 
-    // Validate dates
     if (new Date(editForm.pickupDate) >= new Date(editForm.returnDate)) {
       toast.error("Return date must be after pickup date");
       return;
     }
 
-    // Calculate new price based on new dates
-    const days = Math.ceil(
-      (new Date(editForm.returnDate).getTime() -
-        new Date(editForm.pickupDate).getTime()) /
-        (1000 * 60 * 60 * 24),
-    );
-    const pricePerDay =
-      editingBooking.totalPrice /
-      Math.ceil(
-        (new Date(
-          convertToDateInput(editingBooking.rentalPeriod.split(" - ")[1]),
-        ).getTime() -
-          new Date(
-            convertToDateInput(editingBooking.rentalPeriod.split(" - ")[0]),
-          ).getTime()) /
-          (1000 * 60 * 60 * 24),
-      );
-    const newPrice = Math.round(days * pricePerDay);
+    if (!editForm.pickupLocationId || !editForm.returnLocationId) {
+      toast.error("Please select both pickup and return locations");
+      return;
+    }
 
-    setBookings(
-      bookings.map((booking) =>
-        booking.id === editingBooking.id
-          ? {
-              ...booking,
-              rentalPeriod: `${formatDateForDisplay(editForm.pickupDate)} - ${formatDateForDisplay(editForm.returnDate)}`,
-              pickupLocation: editForm.pickupLocation,
-              returnLocation: editForm.returnLocation,
-              totalPrice: newPrice,
-              status: "pending" as const, // Changed bookings go to pending for admin approval
-            }
-          : booking,
-      ),
-    );
-
-    toast.success(
-      "Booking updated successfully! Changes are pending admin approval.",
-    );
-    setIsEditDialogOpen(false);
-    setEditingBooking(null);
+    updateBookingMutation.mutate({
+      bookingId: editingBooking.id,
+      pickupAt: toBookingIsoDate(editForm.pickupDate),
+      returnAt: toBookingIsoDate(editForm.returnDate),
+      pickupLocationId: editForm.pickupLocationId,
+      returnLocationId: editForm.returnLocationId,
+    });
   };
 
   const handleConfirmDelete = () => {
     if (!deletingBooking) return;
-
-    setBookings(
-      bookings.filter((booking) => booking.id !== deletingBooking.id),
-    );
-
-    toast.success("Booking deleted successfully.");
-    setIsDeleteDialogOpen(false);
-    setDeletingBooking(null);
+    deleteBookingMutation.mutate(deletingBooking.id);
   };
 
   const canModifyBooking = (booking: Booking): boolean => {
-    return booking.status === "confirmed" || booking.status === "pending";
+    return booking.status === "pending";
   };
 
   const canCancelBooking = (booking: Booking): boolean => {
-    return booking.status === "confirmed" || booking.status === "pending";
+    return booking.status === "pending";
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">My Bookings</h1>
           <p className="text-gray-600">View and manage your car bookings</p>
         </div>
 
-        {/* Bookings List */}
+        {bookingsError ? (
+          <Card className="text-center mb-6 p-4 border border-red-200 bg-red-50">
+            <p className="text-sm text-red-700">{bookingsError.message}</p>
+          </Card>
+        ) : null}
+
+        {isLoadingBookings ? <MyBookingsSkeleton count={3} /> : null}
+
         <div className="space-y-6">
-          {bookings.map((booking, index) => (
+          {bookings.map((booking) => (
             <Card key={booking.id} className="overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
-                {/* Car Image and Info */}
                 <div className="md:col-span-1">
                   <ImageWithFallback
-                    src={bookingImages[index % bookingImages.length]}
+                    src={booking.carImage || fallbackBookingImage}
                     alt={booking.carName}
                     className="w-full h-64 md:h-full object-cover"
                   />
                 </div>
 
-                {/* Booking Details */}
                 <div className="md:col-span-2 p-6">
                   <div className="flex flex-col h-full">
-                    {/* Header with Car Name and Status */}
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="text-xl font-bold mb-1">
@@ -243,7 +429,7 @@ export default function MyBookingsPage() {
                             className={
                               booking.status === "confirmed"
                                 ? "bg-green-500 hover:bg-green-600"
-                                : ""
+                                : "bg-yellow-400 hover:bg-yellow-400"
                             }
                           >
                             {booking.status}
@@ -252,11 +438,10 @@ export default function MyBookingsPage() {
                       </div>
                     </div>
 
-                    {/* Booking Information */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
-                          <Calendar className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <Calendar className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
                           <div>
                             <p className="text-xs text-gray-500 mb-1">
                               Rental Period
@@ -268,7 +453,7 @@ export default function MyBookingsPage() {
                         </div>
 
                         <div className="flex items-start gap-3">
-                          <MapPin className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <MapPin className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
                           <div>
                             <p className="text-xs text-gray-500 mb-1">
                               Pick-up Location
@@ -282,7 +467,7 @@ export default function MyBookingsPage() {
 
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
-                          <MapPin className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <MapPin className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
                           <div>
                             <p className="text-xs text-gray-500 mb-1">
                               Return Location
@@ -294,7 +479,7 @@ export default function MyBookingsPage() {
                         </div>
 
                         <div className="flex items-start gap-3">
-                          <BadgeIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <BadgeIcon className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
                           <div>
                             <p className="text-xs text-gray-500 mb-1">
                               Booked on
@@ -307,7 +492,6 @@ export default function MyBookingsPage() {
                       </div>
                     </div>
 
-                    {/* Footer with Price and Actions */}
                     <div className="mt-auto pt-4 border-t border-gray-300 flex items-center justify-between">
                       <div>
                         <p className="text-xs text-gray-500 mb-1">
@@ -347,8 +531,7 @@ export default function MyBookingsPage() {
           ))}
         </div>
 
-        {/* Empty State (if no bookings) */}
-        {bookings.length === 0 && (
+        {!isLoadingBookings && bookings.length === 0 && (
           <Card className="p-12 text-center">
             <div className="max-w-md mx-auto">
               <BadgeIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -362,7 +545,6 @@ export default function MyBookingsPage() {
         )}
       </div>
 
-      {/* Edit Booking Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl bg-white border-none">
           <DialogHeader>
@@ -405,18 +587,18 @@ export default function MyBookingsPage() {
               <div className="space-y-2">
                 <Label>Pick-up Location</Label>
                 <Select
-                  value={editForm.pickupLocation}
+                  value={editForm.pickupLocationId}
                   onValueChange={(value) =>
-                    setEditForm({ ...editForm, pickupLocation: value })
+                    setEditForm({ ...editForm, pickupLocationId: value })
                   }
                 >
                   <SelectTrigger className="border-gray-300 focus:border-gray-500">
-                    <SelectValue />
+                    <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent className="border-none bg-white">
-                    {mockLocations.map((location) => (
-                      <SelectItem key={location} value={location}>
-                        {location}
+                    {locationOptions.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -425,18 +607,18 @@ export default function MyBookingsPage() {
               <div className="space-y-2">
                 <Label>Return Location</Label>
                 <Select
-                  value={editForm.returnLocation}
+                  value={editForm.returnLocationId}
                   onValueChange={(value) =>
-                    setEditForm({ ...editForm, returnLocation: value })
+                    setEditForm({ ...editForm, returnLocationId: value })
                   }
                 >
                   <SelectTrigger className="border-gray-300 focus:border-gray-500">
-                    <SelectValue />
+                    <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent className="border-none bg-white">
-                    {mockLocations.map((location) => (
-                      <SelectItem key={location} value={location}>
-                        {location}
+                    {locationOptions.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -444,7 +626,7 @@ export default function MyBookingsPage() {
               </div>
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-blue-900">
                   Modification Policy
@@ -462,17 +644,21 @@ export default function MyBookingsPage() {
               variant="outline"
               onClick={() => setIsEditDialogOpen(false)}
               className="border-gray-300 hover:bg-gray-200"
+              disabled={updateBookingMutation.isPending}
             >
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} className="bg-blue-600 hover:bg-blue-700 text-white">
-              Save Changes
+            <Button
+              onClick={handleSaveEdit}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={updateBookingMutation.isPending}
+            >
+              {updateBookingMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Booking Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="bg-white border-none">
           <DialogHeader>
@@ -495,15 +681,15 @@ export default function MyBookingsPage() {
                   </div>
                 </div>
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-900">
                       Deletion Policy
                     </p>
                     <p className="text-xs text-amber-700 mt-1">
-                      • Deleting a booking is irreversible and will remove all
+                      - Deleting a booking is irreversible and will remove all
                       associated data.
-                      <br />• If the booking is confirmed or pending, a refund
+                      <br />- If the booking is confirmed or pending, a refund
                       may be applicable based on our cancellation policy.
                     </p>
                   </div>
@@ -511,16 +697,24 @@ export default function MyBookingsPage() {
               </div>
             )}
           </div>
-          <DialogFooter >
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setIsDeleteDialogOpen(false)}
               className="border-gray-300 hover:bg-gray-200"
+              disabled={deleteBookingMutation.isPending}
             >
               Keep Booking
             </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
-              Confirm Deletion
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={deleteBookingMutation.isPending}
+            >
+              {deleteBookingMutation.isPending
+                ? "Deleting..."
+                : "Confirm Deletion"}
             </Button>
           </DialogFooter>
         </DialogContent>

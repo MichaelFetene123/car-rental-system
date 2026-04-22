@@ -8,64 +8,224 @@ import {
   Fuel,
   Settings,
   MapPin,
-  ChevronLeft,
-  ChevronRight,
   Heart,
+  LoaderCircle,
+  BadgeAlert,
 } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Card } from "@/app/ui/card";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
-import { mockCars } from "@/app/lib/mockData";
+import { CarDetailSkeleton } from "@/app/ui/skeletons";
+import type { BackendCar, PublicCar } from "@/app/lib/data";
+import { getStoredToken } from "@/app/lib/auth";
+import { API_BASE_URL } from "@/server/server";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-const carImages = [
-  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMEJNVyUyMHNwb3J0JTIwY2FyJTIwcm9hZHxlbnwxfHx8fDE3NzE4NDc2MTJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1606173929045-3dd85676897b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibHVlJTIwQk1XJTIwbHV4dXJ5JTIwY2FyJTIwb2NlYW58ZW58MXx8fHwxNzcxODQ3NjEzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  "https://images.unsplash.com/photo-1764045565546-a5a8bf80fbec?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMFRlc2xhJTIwZWxlY3RyaWMlMjBjYXIlMjBtb3VudGFpbnxlbnwxfHx8fDE3NzE4NDc2MTR8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-];
+const fallbackCarImage =
+  "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
+
+type BackendCarWithLocationId = BackendCar & {
+  homeLocation?: {
+    id?: string;
+    name?: string;
+  } | null;
+};
+
+type PublicCarDetail = PublicCar & {
+  homeLocationId?: string;
+};
+
+type CreateBookingPayload = {
+  carId: string;
+  pickupLocationId: string;
+  returnLocationId: string;
+  pickupAt: string;
+  returnAt: string;
+};
+
+const mapBackendCarToPublicCar = (car: BackendCarWithLocationId): PublicCarDetail => ({
+  id: car.id,
+  name: car.name,
+  year: car.year,
+  category: car.category?.name ?? "Other",
+  location: car.homeLocation?.name ?? "Unknown",
+  homeLocationId: car.homeLocation?.id,
+  seats: car.seats,
+  fuelType: car.fuelType ?? "Unknown",
+  transmission: car.transmission,
+  pricePerDay: Number(car.pricePerDay),
+  imageUrl: car.imageUrl ?? "",
+  available: car.status === "available",
+  description: undefined,
+});
+
+const fetchPublicCarById = async (
+  id: string,
+  signal?: AbortSignal,
+): Promise<PublicCarDetail> => {
+  const response = await fetch(`${API_BASE_URL}/cars/${id}`, {
+    method: "GET",
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Unable to load car from server (${response.status}). ${errorText}`,
+    );
+  }
+
+  const backendCar = (await response.json()) as BackendCarWithLocationId;
+  return mapBackendCarToPublicCar(backendCar);
+};
+
+const parseErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const data = (await response.json()) as { message?: string | string[] };
+    if (Array.isArray(data.message)) return data.message.join(", ");
+    if (typeof data.message === "string") return data.message;
+  } catch {
+    // Fallback to status text if response body is not JSON.
+  }
+
+  return response.statusText || "Request failed";
+};
+
+const createBooking = async (payload: CreateBookingPayload) => {
+  const token = getStoredToken();
+
+  if (!token) {
+    throw new Error("Please log in to book this car.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/bookings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+
+  return response.json();
+};
 
 export default function CarDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string | string[] }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const navigate = useRouter();
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
 
-  const car = mockCars.find((c) => c.id === id);
+  const {
+    data: car,
+    isPending: isLoadingCar,
+    error: carError,
+  } = useQuery<PublicCarDetail, Error>({
+    queryKey: ["publicCar", id],
+    queryFn: ({ signal }) => fetchPublicCarById(id as string, signal),
+    enabled: Boolean(id),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-  if (!car) {
+  const bookingMutation = useMutation({
+    mutationFn: (payload: CreateBookingPayload) => createBooking(payload),
+  });
+
+  if (isLoadingCar) {
+    return <CarDetailSkeleton />;
+  }
+
+  if (carError) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Car not found</h2>
-          <Button onClick={() => navigate.push("/cars")}>Back to Cars</Button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="p-12 text-center w-full max-w-xl">
+          <div className="max-w-md mx-auto">
+            <BadgeAlert className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Unable to load car</h2>
+            <p className="text-gray-600 mb-6">
+              {carError.message ||
+                "Something went wrong while loading this car. Please try again."}
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate.push("/cars")}
+            className="bg-blue-50 text-blue-500 hover:bg-blue-100  hover:text-blue-600 transition-colors duration-300"
+          >
+            Back to Cars
+          </Button>
+        </Card>
       </div>
     );
   }
 
-  const handlePrevImage = () => {
-    setCurrentImageIndex((prev) =>
-      prev === 0 ? carImages.length - 1 : prev - 1,
+  if (!car) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="p-12 text-center w-full max-w-xl">
+          <div className="max-w-md mx-auto">
+            <BadgeAlert className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Car not found</h2>
+            <p className="text-gray-600 mb-6">
+              This car may have been removed or is no longer available.
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate.push("/cars")}
+            className="bg-blue-500 text-white hover:bg-blue-600"
+          >
+            Back to Cars
+          </Button>
+        </Card>
+      </div>
     );
-  };
+  }
 
-  const handleNextImage = () => {
-    setCurrentImageIndex((prev) =>
-      prev === carImages.length - 1 ? 0 : prev + 1,
-    );
-  };
+  const handleBookNow = async () => {
+    if (bookingMutation.isPending) return;
 
-  const handleBookNow = () => {
     if (!pickupDate || !returnDate) {
       toast.error("Please select pickup and return dates");
       return;
     }
-    toast.success("Booking request submitted successfully!");
-    setTimeout(() => {
+
+    if (returnDate <= pickupDate) {
+      toast.error("Return date must be after pickup date");
+      return;
+    }
+
+    if (!car.homeLocationId) {
+      toast.error("Pickup location is unavailable for this car.");
+      return;
+    }
+
+    const payload: CreateBookingPayload = {
+      carId: car.id,
+      pickupLocationId: car.homeLocationId,
+      returnLocationId: car.homeLocationId,
+      pickupAt: new Date(`${pickupDate}T09:00:00.000Z`).toISOString(),
+      returnAt: new Date(`${returnDate}T09:00:00.000Z`).toISOString(),
+    };
+
+    try {
+      await bookingMutation.mutateAsync(payload);
+      toast.success("Booking request submitted successfully!");
       navigate.push("/my-bookings");
-    }, 1500);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Booking failed. Please try again.",
+      );
+    }
   };
 
   return (
@@ -87,34 +247,14 @@ export default function CarDetailPage() {
             {/* Image Gallery */}
             <div className="relative mb-8 rounded-xl overflow-hidden bg-gray-100">
               <ImageWithFallback
-                src={carImages[currentImageIndex]}
+                src={car.imageUrl || fallbackCarImage}
                 alt={car.name}
-                className="w-full h-[500px] object-cover"
+                className="w-full h-125 object-cover"
               />
-
-              {/* Image Navigation */}
-              <div className="absolute inset-0 flex items-center justify-between px-4">
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  onClick={handlePrevImage}
-                  className="rounded-full bg-white/90 hover:bg-white"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  onClick={handleNextImage}
-                  className="rounded-full bg-white/90 hover:bg-white"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
-              </div>
 
               {/* Image Counter */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm">
-                {currentImageIndex + 1} / {carImages.length}
+                1 / 1
               </div>
 
               {/* Favorite Button */}
@@ -132,7 +272,7 @@ export default function CarDetailPage() {
               <div>
                 <h1 className="text-3xl font-bold mb-2">{car.name}</h1>
                 <p className="text-gray-600">
-                  {car.year} • {car.type}
+                  {car.year} • {car.category}
                 </p>
               </div>
 
@@ -236,10 +376,28 @@ export default function CarDetailPage() {
                   />
                 </div>
               </div>
-
-              <Button onClick={handleBookNow} className="w-full mb-4 bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300" size="lg">
-                Book Now
+              <Button
+                onClick={handleBookNow}
+                className="w-full mb-4 bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300"
+                size="lg"
+                disabled={bookingMutation.isPending}
+                aria-busy={bookingMutation.isPending}
+              >
+                {bookingMutation.isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    Booking...
+                  </span>
+                ) : (
+                  "Book Now"
+                )}
               </Button>
+
+              {bookingMutation.isError ? (
+                <p className="mb-3 text-sm text-red-600">
+                  An error occurred: {bookingMutation.error.message}
+                </p>
+              ) : null}
 
               <p className="text-xs text-center text-gray-500">
                 No credit card required to reserve

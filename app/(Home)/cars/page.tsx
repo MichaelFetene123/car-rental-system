@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, Users, Fuel, Settings, MapPin } from "lucide-react";
+import { Search, Filter, Users, Fuel, Settings, MapPin, BadgeAlert } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Badge } from "@/app/ui/badge";
@@ -84,7 +84,7 @@ export default function CarsPage() {
        !normalizedFuelType ||
        car.fuelType.toLowerCase().includes(normalizedFuelType);
 
-     return matchName && matchCategory && matchFuelType;
+     return matchName || matchCategory || matchFuelType;
    });
  }, [searchQuery, cars]);
 
@@ -92,7 +92,7 @@ export default function CarsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
-      <section className="bg-gradient-to-br from-gray-100 to-gray-200 py-16">
+      <section className="bg-linear-to-br from-gray-100 to-gray-200 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold text-center mb-4">
             Available Cars
@@ -125,7 +125,7 @@ export default function CarsPage() {
       <section className="bg-white py-12 px-4 border-t border-gray-50">
         <div className="container mx-auto max-w-6xl">
           <h1 className="  mb-6 text-3xl font-bold pb-8 border-b border-gray-50 text-center">
-            <span className="bg-gradient-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
+            <span className="bg-linear-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
               {cars?.length}{" "}
               Available Cars
             </span>
@@ -140,6 +140,20 @@ export default function CarsPage() {
 
             {isLoadingCars ? (
               <HomeCarCardsSkeleton count={HOME_RECENT_CARS_LIMIT} />
+            ) : filteredCars.length === 0 ? (
+              <Card className="col-span-full p-12 text-center">
+                <div className="max-w-md mx-auto">
+                  <BadgeAlert className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">
+                    {searchQuery.trim() ? "No cars found" : "No cars available yet"}
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    {searchQuery.trim()
+                      ? "No cars match your search. Try another keyword or clear the search box."
+                      : "There are currently no cars to display. Please check back soon."}
+                  </p>
+                </div>
+              </Card>
             ) : (
               filteredCars.map((car) => (
                 <Card

@@ -20,7 +20,7 @@ import { CarDetailSkeleton } from "@/app/ui/skeletons";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
 import { getStoredToken } from "@/app/lib/auth";
 import { API_BASE_URL } from "@/server/server";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const fallbackCarImage =
@@ -113,13 +113,17 @@ const createBooking = async (payload: CreateBookingPayload) => {
     throw new Error(await parseErrorMessage(response));
   }
 
-  return response.json();
+  const responseText = await response.text();
+  //todo unless the backend is updated to always return a JSON response, we need to handle this case gracefully to avoid JSON parsing errors on empty responses.
+  // todo if the response body is empty, we return null instead of trying to parse it as JSON, which would throw an error. This allows the frontend to handle successful responses that don't include a body without crashing.
+  return responseText ? JSON.parse(responseText) : null;
 };
 
 export default function CarDetailPage() {
   const params = useParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const navigate = useRouter();
+  const queryClient = useQueryClient();
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
 
@@ -138,6 +142,21 @@ export default function CarDetailPage() {
 
   const bookingMutation = useMutation({
     mutationFn: (payload: CreateBookingPayload) => createBooking(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["myBookings"],
+        refetchType: "all",
+      });
+      toast.success("Booking request submitted successfully!");
+      navigate.replace("/my-bookings");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Booking failed. Please try again.",
+      );
+    },
   });
 
   if (isLoadingCar) {
@@ -215,17 +234,7 @@ export default function CarDetailPage() {
       returnAt: new Date(`${returnDate}T09:00:00.000Z`).toISOString(),
     };
 
-    try {
-      await bookingMutation.mutateAsync(payload);
-      toast.success("Booking request submitted successfully!");
-      navigate.push("/my-bookings");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Booking failed. Please try again.",
-      );
-    }
+    bookingMutation.mutate(payload);
   };
 
   return (

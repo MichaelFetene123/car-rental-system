@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   MapPin,
@@ -169,6 +170,7 @@ const fetchMyBookings = async (): Promise<Booking[]> => {
 
 export default function MyBookingsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const {
     data: bookings = [],
@@ -374,12 +376,38 @@ export default function MyBookingsPage() {
     return booking.status === "pending";
   };
 
+  const selectedBookingForPayment = useMemo(() => {
+    const activeBooking = bookings.find(
+      (booking) => booking.status === "pending",
+    );
+
+    return activeBooking ?? null;
+  }, [bookings]);
+
+  const handleProceedToPayment = () => {
+    if (!selectedBookingForPayment) {
+      toast.error("No booking available for payment.");
+      return;
+    }
+
+    router.push(`/payment?bookingId=${selectedBookingForPayment.id}`);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">My Bookings</h1>
-          <p className="text-gray-600">View and manage your car bookings</p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">My Bookings</h1>
+            <p className="text-gray-600">View and manage your car bookings</p>
+          </div>
+          <Button
+            onClick={handleProceedToPayment}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={!selectedBookingForPayment || isLoadingBookings}
+          >
+            Proceed to Payment
+          </Button>
         </div>
 
         {bookingsError ? (
@@ -388,7 +416,7 @@ export default function MyBookingsPage() {
           </Card>
         ) : null}
 
-        {isLoadingBookings ? <MyBookingsSkeleton count={3} /> : null}
+        {isLoadingBookings ? <MyBookingsSkeleton count={2} /> : null}
 
         <div className="space-y-6">
           {bookings.map((booking) => (
@@ -429,7 +457,7 @@ export default function MyBookingsPage() {
                             className={
                               booking.status === "confirmed"
                                 ? "bg-green-500 hover:bg-green-600"
-                                : "bg-yellow-400 hover:bg-yellow-400"
+                                : "bg-yellow-200 hover:bg-yellow-300"
                             }
                           >
                             {booking.status}

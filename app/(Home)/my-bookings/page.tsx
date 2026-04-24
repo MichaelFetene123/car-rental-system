@@ -33,7 +33,7 @@ import {
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { MyBookingsSkeleton } from "@/app/ui/skeletons";
 import { API_BASE_URL } from "@/server/server";
-import { getStoredToken } from "@/app/lib/auth";
+import { authFetch } from "@/app/lib/auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -146,17 +146,8 @@ const toBookingIsoDate = (dateOnly: string) =>
   new Date(`${dateOnly}T09:00:00.000Z`).toISOString();
 
 const fetchMyBookings = async (): Promise<Booking[]> => {
-  const token = getStoredToken();
-
-  if (!token) {
-    throw new Error("Please log in to view your bookings.");
-  }
-
-  const response = await fetch(`${API_BASE_URL}/bookings/me`, {
+  const response = await authFetch(`/bookings/me`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
     cache: "no-store",
   });
 
@@ -248,14 +239,10 @@ export default function MyBookingsPage() {
 
   const updateBookingMutation = useMutation({
     mutationFn: async (payload: UpdateBookingPayload) => {
-      const token = getStoredToken();
-      if (!token) throw new Error("Authentication required");
-
-      const response = await fetch(`${API_BASE_URL}/bookings`, {
+      const response = await authFetch(`/bookings`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -311,14 +298,8 @@ export default function MyBookingsPage() {
 
   const deleteBookingMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const token = getStoredToken();
-      if (!token) throw new Error("Authentication required");
-
-      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, {
+      const response = await authFetch(`/bookings/${bookingId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {

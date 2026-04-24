@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
@@ -33,15 +34,46 @@ import { Badge } from "@/app/ui/badge";
 import { Plus, Edit, Trash2, Search, Upload } from "lucide-react";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/server/server";
+import { authFetch, clearStoredAuth } from "@/app/lib/auth";
 
-import { Car, initialCars } from "@/app/lib/data";
+import { Car } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
 
+type CarCategory = {
+  id: string;
+  name: string;
+};
+
+type ManageCar = Car & {
+  categoryId?: string;
+  imageUrl?: string | null;
+};
+
+type ApiCar = {
+  id: string;
+  name: string;
+  fuelType?: string | null;
+  year: number;
+  seats: number;
+  transmission: string;
+  pricePerDay?: number | string;
+  status: Car["status"];
+  description?: string | null;
+  imageUrl?: string | null;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
+};
+
 export default function ManageCars() {
-  const [cars, setCars] = useState<Car[]>(initialCars);
+  const router = useRouter();
+  const [cars, setCars] = useState<ManageCar[]>([]);
+  const [isLoadingCars, setIsLoadingCars] = useState(true);
+  const [carsLoadError, setCarsLoadError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<CarCategory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCar, setEditingCar] = useState<Car | null>(null);
+  const [editingCar, setEditingCar] = useState<ManageCar | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -55,6 +87,123 @@ export default function ManageCars() {
     seats: "",
     description: "",
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const parseErrorMessage = async (response: Response): Promise<string> => {
+    try {
+      const error = (await response.json()) as { message?: string | string[] };
+      if (Array.isArray(error.message)) return error.message.join(", ");
+      if (typeof error.message === "string") return error.message;
+    } catch {
+      // Fallback to response status text when body isn't JSON.
+    }
+
+    return response.statusText || "Request failed";
+  };
+
+  const handleAuthExpired = () => {
+    clearStoredAuth();
+    toast.error("Session expired. Please log in again.");
+    router.replace("/login");
+  };
+
+  const mapApiCarToUiCar = (car: ApiCar): ManageCar => ({
+    id: car.id,
+    name: car.name,
+    fuelType: car.fuelType ?? "",
+    category: car.category?.name ?? "Unknown",
+    categoryId: car.categoryId ?? car.category?.id ?? undefined,
+    price: Number(car.pricePerDay ?? 0),
+    status: car.status,
+    image: car.imageUrl ?? "",
+    imageUrl: car.imageUrl ?? null,
+    year: Number(car.year),
+    transmission: car.transmission,
+    seats: Number(car.seats),
+    description: car.description ?? "",
+  });
+
+  useEffect(() => {
+    const loadCars = async () => {
+      setIsLoadingCars(true);
+      setCarsLoadError(null);
+
+      try {
+        const res = await authFetch(`/admin/cars`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res));
+        }
+
+        const data = (await res.json()) as ApiCar[];
+        setCars(data.map(mapApiCarToUiCar));
+      } catch (err) {
+        if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
+          handleAuthExpired();
+          return;
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Unable to load cars";
+        setCarsLoadError(message);
+        toast.error(`Cars load failed: ${message}`);
+      } finally {
+        setIsLoadingCars(false);
+      }
+    };
+
+    void loadCars();
+  }, []);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await authFetch(`/car-categories`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res));
+        }
+
+        const data = (await res.json()) as CarCategory[];
+        setCategories(data);
+      } catch (err) {
+        if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
+          handleAuthExpired();
+          return;
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Unable to load categories";
+        toast.error(`Category load failed: ${message}`);
+      }
+    };
+
+    void loadCategories();
+  }, []);
+
+  const getCarImageSrc = (car: Car): string => {
+    const imageUrl = (car as Car & { imageUrl?: string | null }).imageUrl;
+    const rawSrc = imageUrl ?? car.image;
+
+    if (!rawSrc) return "";
+
+    if (
+      rawSrc.startsWith("http://") ||
+      rawSrc.startsWith("https://") ||
+      rawSrc.startsWith("blob:") ||
+      rawSrc.startsWith("data:")
+    ) {
+      return rawSrc;
+    }
+
+    return `${API_BASE_URL}${rawSrc.startsWith("/") ? "" : "/"}${rawSrc}`;
+  };
 
   const filteredCars = cars.filter(
     (car) =>
@@ -79,12 +228,17 @@ export default function ManageCars() {
     setIsDialogOpen(true);
   };
 
-  const handleEditCar = (car: Car) => {
+  const handleEditCar = (car: ManageCar) => {
+    const matchedCategoryId =
+      car.categoryId ??
+      categories.find((category) => category.name === car.category)?.id ??
+      "";
+
     setEditingCar(car);
     setFormData({
       name: car.name,
       fuelType: car.fuelType || "",
-      category: car.category,
+      category: matchedCategoryId,
       price: car.price.toString(),
       status: car.status,
       image: car.image,
@@ -96,51 +250,99 @@ export default function ManageCars() {
     setIsDialogOpen(true);
   };
 
-  const handleDeleteCar = (id: string) => {
-    setCars(cars.filter((car) => car.id !== id));
-    toast.success("Car deleted successfully");
+  const handleDeleteCar = async (id: string) => {
+    try {
+      const res = await authFetch(`/admin/cars/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error(await parseErrorMessage(res));
+      }
+
+      setCars(cars.filter((car) => car.id !== id));
+      toast.success("Car deleted successfully");
+    } catch (err) {
+      if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
+        handleAuthExpired();
+        return;
+      }
+
+      const message =
+        err instanceof Error ? err.message : "Failed to delete car";
+      toast.error(`Delete failed: ${message}`);
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      setSelectedFile(file);
+
+      // optional preview only
+      const previewUrl = URL.createObjectURL(file);
+      setFormData({ ...formData, image: previewUrl });
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingCar) {
-      setCars(
-        cars.map((car) =>
-          car.id === editingCar.id
-            ? {
-                ...car,
-                ...formData,
-                price: parseFloat(formData.price),
-                year: parseInt(formData.year),
-                seats: parseInt(formData.seats),
-              }
-            : car,
-        ),
-      );
-      toast.success("Car updated successfully");
-    } else {
-      const newCar: Car = {
-        id: Date.now().toString(),
-        ...formData,
-        price: parseFloat(formData.price),
-        year: parseInt(formData.year),
-        seats: parseInt(formData.seats),
-      };
-      setCars([...cars, newCar]);
-      toast.success("Car added successfully");
+
+    try {
+      const form = new FormData();
+
+      form.append("name", formData.name);
+      form.append("fuelType", formData.fuelType);
+      form.append("categoryId", formData.category);
+      form.append("pricePerDay", formData.price);
+      form.append("status", formData.status);
+      form.append("year", formData.year);
+      form.append("transmission", formData.transmission);
+      form.append("seats", formData.seats);
+      form.append("description", formData.description);
+
+      if (selectedFile) {
+        form.append("image", selectedFile);
+      }
+
+      const endpoint = editingCar
+        ? `/admin/cars/${editingCar.id}`
+        : "/admin/cars";
+
+      const method = editingCar ? "PATCH" : "POST";
+
+      const res = await authFetch(endpoint, {
+        method,
+        body: form,
+      });
+
+      if (!res.ok) {
+        throw new Error(await parseErrorMessage(res));
+      }
+
+      const data = mapApiCarToUiCar((await res.json()) as ApiCar);
+
+      if (editingCar) {
+        setCars((currentCars) =>
+          currentCars.map((c) => (c.id === data.id ? data : c)),
+        );
+        toast.success("Car updated successfully");
+      } else {
+        setCars((currentCars) => [data, ...currentCars]);
+        toast.success("Car added successfully");
+      }
+
+      setIsDialogOpen(false);
+    } catch (err) {
+      if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
+        handleAuthExpired();
+        return;
+      }
+
+      const message =
+        err instanceof Error ? err.message : "Failed to save car data";
+      toast.error(`Car save failed: ${message}`);
     }
-    setIsDialogOpen(false);
   };
 
   const getStatusColor = (status: Car["status"]) => {
@@ -209,11 +411,17 @@ export default function ManageCars() {
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent className="bg-white">
-                      <SelectItem value="Sedan">Sedan</SelectItem>
-                      <SelectItem value="SUV">SUV</SelectItem>
-                      <SelectItem value="Sports">Sports</SelectItem>
-                      <SelectItem value="Electric">Electric</SelectItem>
-                      <SelectItem value="Compact">Compact</SelectItem>
+                      {categories.length > 0 ? (
+                        categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__no_category__" disabled>
+                          No categories found
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -320,19 +528,10 @@ export default function ManageCars() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="image">Image URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="image"
-                    value={formData.image}
-                    onChange={(e) =>
-                      setFormData({ ...formData, image: e.target.value })
-                    }
-                    placeholder="Enter image URL or upload"
-                    required
-                    className="border-gray-500"
-                  />
+                <Label htmlFor="imageUpload">Car Image</Label>
+                <div className="flex items-center gap-2">
                   <input
+                    id="imageUpload"
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -346,6 +545,9 @@ export default function ManageCars() {
                   >
                     <Upload className="size-4" />
                   </Button>
+                  <span className="text-sm text-gray-600 truncate">
+                    {selectedFile?.name ?? "No file selected"}
+                  </span>
                 </div>
               </div>
               <DialogFooter>
@@ -400,48 +602,77 @@ export default function ManageCars() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCars.map((car) => (
-                  <TableRow key={car.id} className="border-gray-300">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <ImageWithFallback
-                          src={car.image}
-                          alt={car.name}
-                          className="size-12 rounded object-cover"
-                        />
-                        <span>{car.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{car.category}</TableCell>
-                    <TableCell>{car.year}</TableCell>
-                    <TableCell>{car.transmission}</TableCell>
-                    <TableCell>{car.seats}</TableCell>
-                    <TableCell>${car.price}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(car.status)}>
-                        {car.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditCar(car)}
-                        >
-                          <Edit className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteCar(car.id)}
-                        >
-                          <Trash2 className="size-4 text-red-600" />
-                        </Button>
-                      </div>
+                {isLoadingCars ? (
+                  <TableRow className="border-gray-300">
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-gray-600"
+                    >
+                      Loading cars...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : carsLoadError ? (
+                  <TableRow className="border-gray-300">
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-red-600"
+                    >
+                      Failed to load cars: {carsLoadError}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredCars.length === 0 ? (
+                  <TableRow className="border-gray-300">
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-gray-600"
+                    >
+                      No cars found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredCars.map((car) => (
+                    <TableRow key={car.id} className="border-gray-300">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <ImageWithFallback
+                            src={getCarImageSrc(car)}
+                            alt={car.name}
+                            className="size-12 rounded object-cover"
+                          />
+                          <span>{car.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{car.category}</TableCell>
+                      <TableCell>{car.year}</TableCell>
+                      <TableCell>{car.transmission}</TableCell>
+                      <TableCell>{car.seats}</TableCell>
+                      <TableCell>${car.price}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(car.status)}>
+                          {car.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditCar(car)}
+                          >
+                            <Edit className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteCar(car.id)}
+                          >
+                            <Trash2 className="size-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

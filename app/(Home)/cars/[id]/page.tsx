@@ -18,7 +18,7 @@ import { Card } from "@/app/ui/card";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { CarDetailSkeleton } from "@/app/ui/skeletons";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
-import { getStoredToken } from "@/app/lib/auth";
+import { authFetch } from "@/app/lib/auth";
 import { API_BASE_URL } from "@/server/server";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -94,17 +94,10 @@ const parseErrorMessage = async (response: Response): Promise<string> => {
 };
 
 const createBooking = async (payload: CreateBookingPayload) => {
-  const token = getStoredToken();
-
-  if (!token) {
-    throw new Error("Please log in to book this car.");
-  }
-
-  const response = await fetch(`${API_BASE_URL}/bookings`, {
+  const response = await authFetch(`/bookings`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
   });

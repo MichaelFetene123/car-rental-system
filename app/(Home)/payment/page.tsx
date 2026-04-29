@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ShoppingCart } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { authFetch } from "@/app/lib/auth";
+import { Input } from "@/app/ui/input";
 
 type BackendBookingStatus =
   | "pending"
@@ -111,6 +112,11 @@ const fetchPaymentBookings = async (): Promise<PaymentBooking[]> => {
 };
 
 export default function PaymentPage() {
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [processingBookingId, setProcessingBookingId] = useState<string | null>(
+    null,
+  );
   const {
     data: bookings = [],
     isPending: isLoadingBookings,
@@ -136,6 +142,57 @@ export default function PaymentPage() {
 
     return { totalCars, totalMoney };
   }, [bookings]);
+
+  const pendingBooking = useMemo(() => {
+    const pending = bookings
+      .filter((booking) => booking.status === "pending")
+      .sort((a, b) => +new Date(b.bookedAt) - +new Date(a.bookedAt));
+    return pending[0] ?? null;
+  }, [bookings]);
+
+  const handleChapaPayment = async () => {
+    setPaymentError(null);
+    if (!pendingBooking) {
+      setPaymentError("No pending booking found to pay.");
+      return;
+    }
+
+    setProcessingBookingId(pendingBooking.id);
+
+    try {
+      const response = await authFetch(`/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: pendingBooking.id,
+          amount: pendingBooking.totalAmount,
+          method: "mobile_money",
+          phone: phoneNumber.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+      }
+
+      const payload = (await response.json()) as {
+        chapa?: { data?: { checkout_url?: string } };
+      };
+
+      const checkoutUrl = payload.chapa?.data?.checkout_url;
+      if (!checkoutUrl) {
+        throw new Error("Chapa checkout url is missing");
+      }
+
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to start payment";
+      setPaymentError(message);
+    } finally {
+      setProcessingBookingId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -224,8 +281,41 @@ export default function PaymentPage() {
         </Card>
 
         <Card className="p-6 border-gray-200">
-          <h2 className="text-xl font-semibold mb-2">Payment Methods</h2>
-          <p className="text-gray-600">Payment methods will be added here.</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-semibold">Demo Checkout</h2>
+              <p className="text-gray-500 text-sm">
+                See how simple it is to make payment by Chapa
+              </p>
+            </div>
+            <span className="text-green-600 font-semibold">Chapa</span>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-sm font-semibold text-gray-900">
+              Phone Number
+            </label>
+            <Input
+              placeholder="09xxxxxxxx"
+              value={phoneNumber}
+              onChange={(event) => setPhoneNumber(event.target.value)}
+            />
+            <Button
+              className="w-full bg-blue-900 hover:bg-blue-950 text-white"
+              onClick={handleChapaPayment}
+              disabled={!pendingBooking || processingBookingId !== null}
+            >
+              {processingBookingId ? "Redirecting..." : "Pay"}
+            </Button>
+            {paymentError ? (
+              <p className="text-sm text-red-600">{paymentError}</p>
+            ) : null}
+            {!pendingBooking ? (
+              <p className="text-sm text-gray-500">
+                You do not have a pending booking to pay right now.
+              </p>
+            ) : null}
+          </div>
         </Card>
 
         <div className="flex justify-end">

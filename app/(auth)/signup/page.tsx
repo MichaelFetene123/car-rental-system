@@ -1,66 +1,57 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
-import { Car } from 'lucide-react';
-import { Button } from '@/app/ui/button';
-import { Input } from '@/app/ui/input';
-import { Label } from '@/app/ui/lable';
-import {
-  loginUser,
-  persistAccessToken,
-  registerUser,
-} from '@/app/lib/auth';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+import { Car } from "lucide-react";
+import { Button } from "@/app/ui/button";
+import { Input } from "@/app/ui/input";
+import { Label } from "@/app/ui/lable";
+import { useLoginMutation, useRegisterMutation } from "@/app/lib/auth-queries";
 
 export default function SignupPage() {
   const router = useRouter();
 
   const [form, setForm] = useState({
-    full_name: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
+    full_name: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
   });
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const registerMutation = useRegisterMutation();
+  const loginMutation = useLoginMutation();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError('');
+    setError("");
 
     if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.');
+      setError("Passwords do not match.");
       return;
     }
 
-    setIsSubmitting(true);
-
     try {
-      await registerUser({
+      await registerMutation.mutateAsync({
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         password: form.password,
         phone: form.phone.trim() || undefined,
       });
 
-      const authResponse = await loginUser({
+      await loginMutation.mutateAsync({
         email: form.email.trim(),
         password: form.password,
       });
-
-      persistAccessToken(authResponse.access_token);
-      router.push('/cars');
+      router.push("/cars");
       router.refresh();
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Unable to create account. Please try again.',
+          : "Unable to create account. Please try again.",
       );
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -174,15 +165,20 @@ export default function SignupPage() {
           <Button
             type="submit"
             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={isSubmitting}
+            disabled={registerMutation.isPending || loginMutation.isPending}
           >
-            {isSubmitting ? 'Creating account...' : 'Create account'}
+            {registerMutation.isPending || loginMutation.isPending
+              ? "Creating account..."
+              : "Create account"}
           </Button>
         </form>
 
         <p className="text-sm text-gray-600 mt-6">
-          Already have an account?{' '}
-          <Link href="/login" className="text-blue-700 hover:underline font-medium">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="text-blue-700 hover:underline font-medium"
+          >
             Sign in
           </Link>
         </p>

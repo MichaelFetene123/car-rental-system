@@ -1,27 +1,31 @@
-'use client'
+"use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Search, Car } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { useState } from "react";
-import {
-  getCurrentUserEmail,
-  getStoredToken,
-  isCurrentUserAdmin,
-  logoutUser,
-} from "@/app/lib/auth";
+import { useCurrentUser, useLogoutMutation } from "@/app/lib/auth-queries";
+import { getCurrentUserEmail, isCurrentUserAdmin } from "@/app/lib/auth";
 
-export default function CustomerLayout({ children }: { children: React.ReactNode }) {
-    
+export default function CustomerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => Boolean(getStoredToken()),
-  );
-  const [isAdmin, setIsAdmin] = useState(() => isCurrentUserAdmin());
-  const [userEmail, setUserEmail] = useState(() => getCurrentUserEmail());
+  const { data: currentUser } = useCurrentUser();
+  const logoutMutation = useLogoutMutation();
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const fallbackEmail = getCurrentUserEmail();
+  const fallbackIsAdmin = isCurrentUserAdmin();
+  const isAuthenticated = Boolean(currentUser || fallbackEmail);
+  const isAdmin = Boolean(
+    currentUser?.roles?.some((role) => role === "admin") ?? fallbackIsAdmin,
+  );
+  const userEmail = currentUser?.email ?? fallbackEmail;
 
   const isActive = (path: string) => pathname === path;
   const displayEmail = userEmail
@@ -34,10 +38,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     if (isSigningOut) return;
 
     setIsSigningOut(true);
-    await logoutUser();
-    setIsAuthenticated(false);
-    setIsAdmin(false);
-    setUserEmail(null);
+    await logoutMutation.mutateAsync();
     setIsSigningOut(false);
     router.push("/");
     router.refresh();

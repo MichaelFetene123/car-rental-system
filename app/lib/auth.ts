@@ -26,6 +26,14 @@ export type AuthResponse = {
   access_token: string;
 };
 
+export type CurrentUser = {
+  sub: string;
+  email?: string;
+  roles: string[];
+  permissions: string[];
+  tokenVersion: number;
+};
+
 type TokenPayload = {
   roles?: unknown;
   email?: unknown;
@@ -62,7 +70,9 @@ const requestJson = async <T>(path: string, init: RequestInit): Promise<T> => {
   });
 
   if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+    const error = new Error(await parseErrorMessage(response));
+    (error as { status?: number }).status = response.status;
+    throw error;
   }
 
   if (response.status === 204) {
@@ -229,6 +239,25 @@ export const getAuthHeaders = async (): Promise<Record<string, string>> => {
   };
 };
 
+export const fetchCurrentUser = async (): Promise<CurrentUser> => {
+  const response = await authFetch("/auth/me", {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    const error = new Error(await parseErrorMessage(response));
+    (error as { status?: number }).status = response.status;
+    throw error;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    throw new Error("No user payload returned");
+  }
+
+  return JSON.parse(text) as CurrentUser;
+};
+
 export const authFetch = async (
   input: string,
   init: RequestInit = {},
@@ -239,7 +268,9 @@ export const authFetch = async (
     throw new Error("Please log in again.");
   }
 
-  const requestUrl = input.startsWith("http") ? input : `${API_BASE_URL}${input}`;
+  const requestUrl = input.startsWith("http")
+    ? input
+    : `${API_BASE_URL}${input}`;
   const headers = new Headers(init.headers ?? {});
   headers.set("Authorization", `Bearer ${token}`);
 

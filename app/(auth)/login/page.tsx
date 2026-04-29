@@ -1,53 +1,53 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useMemo, useState } from 'react';
-import { Car } from 'lucide-react';
-import { Button } from '@/app/ui/button';
-import { Input } from '@/app/ui/input';
-import { Label } from '@/app/ui/lable';
-import { hasTokenRole, loginUser, persistAccessToken } from '@/app/lib/auth';
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
+import { Car } from "lucide-react";
+import { Button } from "@/app/ui/button";
+import { Input } from "@/app/ui/input";
+import { Label } from "@/app/ui/lable";
+import { hasTokenRole } from "@/app/lib/auth";
+import { useLoginMutation } from "@/app/lib/auth-queries";
 
 const resolveNextPath = (nextPath: string | null) => {
-  if (nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//')) {
+  if (nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")) {
     return nextPath;
   }
-  return '/cars';
+  return "/cars";
 };
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = useMemo(
-    () => resolveNextPath(searchParams.get('next')),
+    () => resolveNextPath(searchParams.get("next")),
     [searchParams],
   );
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const loginMutation = useLoginMutation();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError('');
-    setIsSubmitting(true);
+    setError("");
 
     try {
-      const response = await loginUser({ email: email.trim(), password });
-      const isAdmin = hasTokenRole(response.access_token, 'admin');
-      persistAccessToken(response.access_token);
-      router.push(isAdmin ? '/dashboard' : redirectPath);
+      const response = await loginMutation.mutateAsync({
+        email: email.trim(),
+        password,
+      });
+      const isAdmin = hasTokenRole(response.access_token, "admin");
+      router.push(isAdmin ? "/dashboard" : redirectPath);
       router.refresh();
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Unable to sign in. Please try again.',
+          : "Unable to sign in. Please try again.",
       );
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -104,15 +104,18 @@ export default function LoginPage() {
           <Button
             type="submit"
             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={isSubmitting}
+            disabled={loginMutation.isPending}
           >
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
+            {loginMutation.isPending ? "Signing in..." : "Sign in"}
           </Button>
         </form>
 
         <p className="text-sm text-gray-600 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-blue-700 hover:underline font-medium">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/signup"
+            className="text-blue-700 hover:underline font-medium"
+          >
             Create one
           </Link>
         </p>

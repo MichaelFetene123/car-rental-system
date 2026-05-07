@@ -4,15 +4,13 @@
 
 export function CardSkeleton() {
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl bg-gray-100 p-2 shadow-sm no-blur`}
-    >
-      <div className="flex p-4">
+    <div className="relative overflow-hidden rounded-xl border border-gray-300 bg-white no-blur">
+      <div className="flex items-center gap-2 px-6 pt-6 pb-2">
         <div className="h-5 w-5 rounded-md bg-gray-200" />
-        <div className="ml-2 h-6 w-16 rounded-md bg-gray-200 text-sm font-medium" />
+        <div className="h-4 w-20 rounded-md bg-gray-200" />
       </div>
-      <div className="flex items-center justify-center truncate rounded-xl bg-white px-4 py-8">
-        <div className="h-7 w-20 rounded-md bg-gray-200" />
+      <div className="px-6 pb-6">
+        <div className="h-7 w-24 rounded-md bg-gray-200" />
       </div>
     </div>
   );
@@ -184,6 +182,35 @@ export function MyBookingsSkeleton({ count }: { count: number }) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function PaymentBookingsSkeleton({ count }: { count: number }) {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={`payment-bookings-skeleton-${index}`}
+          className="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row gap-4"
+        >
+          <div className="w-full sm:w-40 h-28 shrink-0 overflow-hidden rounded-md bg-gray-200" />
+
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="h-5 w-48 rounded bg-gray-200" />
+            <div className="h-4 w-32 rounded bg-gray-100" />
+            <div className="h-4 w-56 rounded bg-gray-100" />
+            <div className="h-4 w-44 rounded bg-gray-100" />
+          </div>
+
+          <div className="sm:text-right space-y-2">
+            <div className="h-3 w-12 rounded bg-gray-100 ml-auto" />
+            <div className="h-4 w-20 rounded bg-gray-200 ml-auto" />
+            <div className="h-3 w-10 rounded bg-gray-100 ml-auto" />
+            <div className="h-6 w-24 rounded bg-gray-200 ml-auto" />
           </div>
         </div>
       ))}

@@ -33,7 +33,8 @@ import {
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { MyBookingsSkeleton } from "@/app/ui/skeletons";
 import { API_BASE_URL } from "@/server/server";
-import { authFetch } from "@/app/lib/auth";
+import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
+import { useCurrentUser } from "@/app/lib/auth-queries";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -162,19 +163,23 @@ const fetchMyBookings = async (): Promise<Booking[]> => {
 export default function MyBookingsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { data: currentUser } = useCurrentUser();
+  const userKey =
+    currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
 
   const {
     data: bookings = [],
     isPending: isLoadingBookings,
     error: bookingsError,
   } = useQuery<Booking[], Error>({
-    queryKey: ["myBookings"],
+    queryKey: ["myBookings", userKey],
     queryFn: fetchMyBookings,
-    staleTime: Infinity,
+    enabled: Boolean(userKey),
+    staleTime: 0,
     gcTime: 15 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);

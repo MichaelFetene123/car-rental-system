@@ -18,6 +18,7 @@ import { Card } from "@/app/ui/card";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { CarDetailSkeleton } from "@/app/ui/skeletons";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
+import { getUnavailableDetailLabel } from "@/app/lib/availability";
 import { authFetch } from "@/app/lib/auth";
 import { API_BASE_URL } from "@/server/server";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,7 +46,9 @@ type CreateBookingPayload = {
   returnAt: string;
 };
 
-const mapBackendCarToPublicCar = (car: BackendCarWithLocationId): PublicCarDetail => ({
+const mapBackendCarToPublicCar = (
+  car: BackendCarWithLocationId,
+): PublicCarDetail => ({
   id: car.id,
   name: car.name,
   year: car.year,
@@ -58,6 +61,7 @@ const mapBackendCarToPublicCar = (car: BackendCarWithLocationId): PublicCarDetai
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   available: car.status === "available",
+  unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
 
@@ -201,6 +205,8 @@ export default function CarDetailPage() {
     );
   }
 
+  const unavailableDetail = getUnavailableDetailLabel(car.unavailablePeriod);
+
   const handleBookNow = async () => {
     if (bookingMutation.isPending) return;
 
@@ -277,6 +283,12 @@ export default function CarDetailPage() {
                   {car.year} • {car.category}
                 </p>
               </div>
+
+              {unavailableDetail ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {unavailableDetail}
+                </div>
+              ) : null}
 
               {/* Specifications */}
               <Card className="p-6">

@@ -21,6 +21,7 @@ import { Card } from "@/app/ui/card";
 import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
 import { API_BASE_URL } from "@/server/server";
 import { useQuery } from "@tanstack/react-query";
+import { getUnavailableBadgeLabel } from "@/app/lib/availability";
 
 const HOME_RECENT_CARS_LIMIT = 6;
 const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
@@ -37,11 +38,11 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   available: car.status === "available",
+  unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
 const fallbackCarImage =
   "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
-
 
 const fetchPublicCars = async (signal?: AbortSignal): Promise<PublicCar[]> => {
   const response = await fetch(`${API_BASE_URL}/cars`, {
@@ -59,7 +60,6 @@ const fetchPublicCars = async (signal?: AbortSignal): Promise<PublicCar[]> => {
 
   return backendCars.map(mapBackendCarToPublicCar);
 };
-
 
 export default function HomePage() {
   const router = useRouter();
@@ -109,9 +109,12 @@ export default function HomePage() {
     const selectedSeats = seatFilter ? Number(seatFilter) : null;
 
     return cars.filter((car) => {
-      const matchesName = !normalizedName || car.name.toLowerCase().includes(normalizedName);
+      const matchesName =
+        !normalizedName || car.name.toLowerCase().includes(normalizedName);
 
-      const matchesCategory = !normalizedCategory || car.category.toLowerCase().includes(normalizedCategory);
+      const matchesCategory =
+        !normalizedCategory ||
+        car.category.toLowerCase().includes(normalizedCategory);
 
       const matchesFuelType =
         !normalizedFuelType ||
@@ -332,11 +335,29 @@ export default function HomePage() {
                         alt={car.name}
                         className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
                       />
-                      {car.available && (
-                        <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
-                          Available Now
-                        </Badge>
-                      )}
+                      {(() => {
+                        const unavailableBadge = getUnavailableBadgeLabel(
+                          car.unavailablePeriod,
+                        );
+
+                        if (unavailableBadge) {
+                          return (
+                            <Badge className="absolute top-4 left-4 bg-amber-600 text-white">
+                              {unavailableBadge}
+                            </Badge>
+                          );
+                        }
+
+                        if (car.available) {
+                          return (
+                            <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
+                              Available Now
+                            </Badge>
+                          );
+                        }
+
+                        return null;
+                      })()}
                       <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
                         ${car.pricePerDay}/day
                       </div>

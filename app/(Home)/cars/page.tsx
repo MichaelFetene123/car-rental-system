@@ -1,19 +1,28 @@
-'use client'
+"use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, Users, Fuel, Settings, MapPin, BadgeAlert } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Users,
+  Fuel,
+  Settings,
+  MapPin,
+  BadgeAlert,
+} from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Badge } from "@/app/ui/badge";
 import { Card } from "@/app/ui/card";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
-import { mockCars } from "@/app/lib/mockData";
+// import { mockCars } from "@/app/lib/mockData";
 import { normalize } from "path";
 import { match } from "assert";
 import { BackendCar, PublicCar } from "@/app/lib/data";
 import { API_BASE_URL } from "@/server/server";
 import { useQuery } from "@tanstack/react-query";
 import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
+import { getUnavailableBadgeLabel } from "@/app/lib/availability";
 
 const HOME_RECENT_CARS_LIMIT = 6;
 const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
@@ -29,6 +38,7 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   available: car.status === "available",
+  unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
 
@@ -41,17 +51,16 @@ const fetchPublicCars = async (signal?: AbortSignal): Promise<PublicCar[]> => {
     signal,
   });
 
-   if (!response.ok) {
-     const errorText = await response.text();
-     throw new Error(
-       `Unable to load cars from server (${response.status}). ${errorText}`,
-     );
-   }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Unable to load cars from server (${response.status}). ${errorText}`,
+    );
+  }
 
-   const backendCars = (await response.json()) as BackendCar[];
-   return backendCars.map(mapBackendCarToPublicCar);
+  const backendCars = (await response.json()) as BackendCar[];
+  return backendCars.map(mapBackendCarToPublicCar);
 };
-
 
 export default function CarsPage() {
   const router = useRouter();
@@ -69,26 +78,25 @@ export default function CarsPage() {
     refetchOnWindowFocus: false,
   });
 
- const filteredCars = useMemo(() => {
-   const normalizedName = searchQuery.trim().toLowerCase();
-   const normalizedCategory = searchQuery.trim().toLowerCase();
-   const normalizedFuelType = searchQuery.trim().toLowerCase();
+  const filteredCars = useMemo(() => {
+    const normalizedName = searchQuery.trim().toLowerCase();
+    const normalizedCategory = searchQuery.trim().toLowerCase();
+    const normalizedFuelType = searchQuery.trim().toLowerCase();
 
-   return cars.filter((car) => {
-     const matchName =
-       !normalizedName || car.name.toLowerCase().includes(normalizedName);
-     const matchCategory =
-       !normalizedCategory ||
-       car.category.toLowerCase().includes(normalizedCategory);
-     const matchFuelType =
-       !normalizedFuelType ||
-       car.fuelType.toLowerCase().includes(normalizedFuelType);
+    return cars.filter((car) => {
+      const matchName =
+        !normalizedName || car.name.toLowerCase().includes(normalizedName);
+      const matchCategory =
+        !normalizedCategory ||
+        car.category.toLowerCase().includes(normalizedCategory);
+      const matchFuelType =
+        !normalizedFuelType ||
+        car.fuelType.toLowerCase().includes(normalizedFuelType);
 
-     return matchName || matchCategory || matchFuelType;
-   });
- }, [searchQuery, cars]);
+      return matchName || matchCategory || matchFuelType;
+    });
+  }, [searchQuery, cars]);
 
- 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
@@ -126,8 +134,7 @@ export default function CarsPage() {
         <div className="container mx-auto max-w-6xl">
           <h1 className="  mb-6 text-3xl font-bold pb-8 border-b border-gray-50 text-center">
             <span className="bg-linear-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
-              {cars?.length}{" "}
-              Available Cars
+              {cars?.length} Available Cars
             </span>
           </h1>
 
@@ -145,7 +152,9 @@ export default function CarsPage() {
                 <div className="max-w-md mx-auto">
                   <BadgeAlert className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold mb-2">
-                    {searchQuery.trim() ? "No cars found" : "No cars available yet"}
+                    {searchQuery.trim()
+                      ? "No cars found"
+                      : "No cars available yet"}
                   </h3>
                   <p className="text-gray-600 mb-6">
                     {searchQuery.trim()
@@ -167,11 +176,29 @@ export default function CarsPage() {
                       alt={car.name}
                       className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    {car.available && (
-                      <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
-                        Available Now
-                      </Badge>
-                    )}
+                    {(() => {
+                      const unavailableBadge = getUnavailableBadgeLabel(
+                        car.unavailablePeriod,
+                      );
+
+                      if (unavailableBadge) {
+                        return (
+                          <Badge className="absolute top-4 left-4 bg-amber-600 text-white">
+                            {unavailableBadge}
+                          </Badge>
+                        );
+                      }
+
+                      if (car.available) {
+                        return (
+                          <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
+                            Available Now
+                          </Badge>
+                        );
+                      }
+
+                      return null;
+                    })()}
                     <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
                       ${car.pricePerDay}/day
                     </div>

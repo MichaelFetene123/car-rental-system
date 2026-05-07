@@ -69,6 +69,8 @@ export const useLogoutMutation = () => {
     onSuccess: () => {
       queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null);
       queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+      queryClient.removeQueries({ queryKey: ["myBookings"] });
+      queryClient.removeQueries({ queryKey: ["paymentBookings"] });
     },
   });
 };

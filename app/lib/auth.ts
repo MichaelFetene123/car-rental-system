@@ -29,6 +29,7 @@ export type AuthResponse = {
 export type CurrentUser = {
   sub: string;
   email?: string;
+  full_name?: string;
   roles: string[];
   permissions: string[];
   tokenVersion: number;
@@ -37,7 +38,12 @@ export type CurrentUser = {
 type TokenPayload = {
   roles?: unknown;
   email?: unknown;
+  full_name?: unknown;
   exp?: unknown;
+};
+
+type ProfileUser = {
+  full_name?: string;
 };
 
 let refreshPromise: Promise<string> | null = null;
@@ -255,7 +261,35 @@ export const fetchCurrentUser = async (): Promise<CurrentUser> => {
     throw new Error("No user payload returned");
   }
 
-  return JSON.parse(text) as CurrentUser;
+  const user = JSON.parse(text) as CurrentUser;
+
+  if (user.full_name) {
+    return user;
+  }
+
+  try {
+    const profileResponse = await authFetch("/profile", {
+      method: "GET",
+    });
+
+    if (!profileResponse.ok) {
+      return user;
+    }
+
+    const profileText = await profileResponse.text();
+    if (!profileText) {
+      return user;
+    }
+
+    const profile = JSON.parse(profileText) as ProfileUser;
+
+    return {
+      ...user,
+      full_name: profile.full_name ?? user.full_name,
+    };
+  } catch {
+    return user;
+  }
 };
 
 export const authFetch = async (
@@ -318,6 +352,16 @@ export const getCurrentUserEmail = (): string | null => {
   if (!payload || typeof payload.email !== "string") return null;
 
   return payload.email;
+};
+
+export const getCurrentUserName = (): string | null => {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  const payload = parseTokenPayload(token);
+  if (!payload || typeof payload.full_name !== "string") return null;
+
+  return payload.full_name;
 };
 
 export const logoutUser = async () => {

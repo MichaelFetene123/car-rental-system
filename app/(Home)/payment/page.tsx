@@ -6,8 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
-import { authFetch } from "@/app/lib/auth";
-import { Input } from "@/app/ui/input";
+import { PaymentBookingsSkeleton } from "@/app/ui/skeletons";
+import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
+import { useCurrentUser } from "@/app/lib/auth-queries";
 
 type BackendBookingStatus =
   | "pending"
@@ -113,17 +114,20 @@ const fetchPaymentBookings = async (): Promise<PaymentBooking[]> => {
 
 export default function PaymentPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(
     null,
   );
+  const { data: currentUser } = useCurrentUser();
+  const userKey =
+    currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
   const {
     data: bookings = [],
     isPending: isLoadingBookings,
     error: bookingsError,
   } = useQuery<PaymentBooking[], Error>({
-    queryKey: ["paymentBookings"],
+    queryKey: ["paymentBookings", userKey],
     queryFn: fetchPaymentBookings,
+    enabled: Boolean(userKey),
     staleTime: 0,
     gcTime: 10 * 60 * 1000,
     refetchOnMount: "always",
@@ -133,22 +137,27 @@ export default function PaymentPage() {
     refetchIntervalInBackground: true,
   });
 
+  const pendingBookings = useMemo(
+    () => bookings.filter((booking) => booking.status === "pending"),
+    [bookings],
+  );
+
   const bookingStats = useMemo(() => {
-    const totalCars = bookings.length;
-    const totalMoney = bookings.reduce(
+    const totalCars = pendingBookings.length;
+    const totalMoney = pendingBookings.reduce(
       (sum, booking) => sum + booking.totalAmount,
       0,
     );
 
     return { totalCars, totalMoney };
-  }, [bookings]);
+  }, [pendingBookings]);
 
   const pendingBooking = useMemo(() => {
-    const pending = bookings
-      .filter((booking) => booking.status === "pending")
+    const pending = pendingBookings
+      .slice()
       .sort((a, b) => +new Date(b.bookedAt) - +new Date(a.bookedAt));
     return pending[0] ?? null;
-  }, [bookings]);
+  }, [pendingBookings]);
 
   const handleChapaPayment = async () => {
     setPaymentError(null);
@@ -160,31 +169,25 @@ export default function PaymentPage() {
     setProcessingBookingId(pendingBooking.id);
 
     try {
-      const response = await authFetch(`/payments`, {
+      const response = await authFetch(`/payments/initialize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: pendingBooking.id,
-          amount: pendingBooking.totalAmount,
-          method: "mobile_money",
-          phone: phoneNumber.trim() || undefined,
         }),
       });
-
+      // console.log('Payment initialize response status:', response);
       if (!response.ok) {
         throw new Error(await parseErrorMessage(response));
       }
 
-      const payload = (await response.json()) as {
-        chapa?: { data?: { checkout_url?: string } };
-      };
+      //  Handle the response from the payment initialization
+      const payload = (await response.json()) as { checkout_url?: string };
 
-      const checkoutUrl = payload.chapa?.data?.checkout_url;
-      if (!checkoutUrl) {
+      if (!payload.checkout_url)
         throw new Error("Chapa checkout url is missing");
-      }
 
-      window.location.href = checkoutUrl;
+      window.location.assign(payload.checkout_url);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to start payment";
@@ -225,10 +228,10 @@ export default function PaymentPage() {
           <h2 className="text-xl font-semibold mb-4">All Booked Cars</h2>
 
           {isLoadingBookings ? (
-            <p className="text-sm text-gray-600">Loading booked cars...</p>
-          ) : bookings.length > 0 ? (
+            <PaymentBookingsSkeleton count={1} />
+          ) : pendingBookings.length > 0 ? (
             <div className="space-y-4">
-              {bookings.map((booking) => (
+              {pendingBookings.map((booking) => (
                 <div
                   key={booking.id}
                   className="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row gap-4"
@@ -269,7 +272,7 @@ export default function PaymentPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-600">No booked cars found.</p>
+            <p className="text-sm text-gray-600">No pending bookings to pay.</p>
           )}
         </Card>
 
@@ -278,55 +281,20 @@ export default function PaymentPage() {
           <p className="text-3xl font-bold text-blue-600">
             ${bookingStats.totalMoney}
           </p>
-        </Card>
-
-        <Card className="p-6 border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-semibold">Demo Checkout</h2>
-              <p className="text-gray-500 text-sm">
-                See how simple it is to make payment by Chapa
-              </p>
-            </div>
-            <span className="text-green-600 font-semibold">Chapa</span>
-          </div>
-
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-gray-900">
-              Phone Number
-            </label>
-            <Input
-              placeholder="09xxxxxxxx"
-              value={phoneNumber}
-              onChange={(event) => setPhoneNumber(event.target.value)}
-            />
+          <div className="mt-4 flex justify-end">
             <Button
-              className="w-full bg-blue-900 hover:bg-blue-950 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={handleChapaPayment}
               disabled={!pendingBooking || processingBookingId !== null}
+              aria-disabled={!pendingBooking || processingBookingId !== null}
             >
-              {processingBookingId ? "Redirecting..." : "Pay"}
+              {processingBookingId ? "Processing..." : "Checkout"}
             </Button>
-            {paymentError ? (
-              <p className="text-sm text-red-600">{paymentError}</p>
-            ) : null}
-            {!pendingBooking ? (
-              <p className="text-sm text-gray-500">
-                You do not have a pending booking to pay right now.
-              </p>
-            ) : null}
           </div>
+          {paymentError ? (
+            <p className="mt-3 text-sm text-red-600">{paymentError}</p>
+          ) : null}
         </Card>
-
-        <div className="flex justify-end">
-          <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            disabled
-            aria-disabled="true"
-          >
-            Confirm Payment
-          </Button>
-        </div>
       </div>
     </div>
   );

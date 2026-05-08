@@ -304,7 +304,7 @@ export default function ManageCategoriesPage() {
         </CardHeader>
 
         <CardContent>
-          <div className="overflow-x-auto rounded-lg bg-white p-4">
+          <div className="rounded-lg bg-white p-4">
             <Table>
               <TableHeader>
                 <TableRow className="border-gray-300">

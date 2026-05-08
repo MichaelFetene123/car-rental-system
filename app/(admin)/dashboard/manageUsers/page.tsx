@@ -334,8 +334,7 @@ export default function ManageUsers() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto bg-white rounded-lg">
-            <Table>
+          <Table containerClassName="bg-white rounded-lg">
               <TableHeader>
                 <TableRow className=" border-gray-300">
                   <TableHead>Name</TableHead>
@@ -388,7 +387,6 @@ export default function ManageUsers() {
                 ))}
               </TableBody>
             </Table>
-          </div>
         </CardContent>
       </Card>
     </div>

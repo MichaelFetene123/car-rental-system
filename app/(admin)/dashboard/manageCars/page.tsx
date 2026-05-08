@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
@@ -7,12 +7,12 @@ import { Input } from "@/app/ui/input";
 import { Label } from "@/app/ui/lable";
 import { Textarea } from "@/app/ui/textarea";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableScrollArea,
 } from "@/app/ui/table";
 import {
   Dialog,
@@ -65,6 +65,125 @@ type ApiCar = {
   category?: { id: string; name: string } | null;
 };
 
+const defaultCarFormData = {
+  name: "",
+  fuelType: "",
+  category: "",
+  price: "",
+  status: "available" as Car["status"],
+  image: "",
+  year: "",
+  transmission: "",
+  seats: "",
+  description: "",
+};
+
+const parseErrorMessage = async (response: Response): Promise<string> => {
+  try {
+    const error = (await response.json()) as { message?: string | string[] };
+    if (Array.isArray(error.message)) return error.message.join(", ");
+    if (typeof error.message === "string") return error.message;
+  } catch {
+    // Fallback to response status text when body isn't JSON.
+  }
+
+  return response.statusText || "Request failed";
+};
+
+const mapApiCarToUiCar = (car: ApiCar): ManageCar => ({
+  id: car.id,
+  name: car.name,
+  fuelType: car.fuelType ?? "",
+  category: car.category?.name ?? "Unknown",
+  categoryId: car.categoryId ?? car.category?.id ?? undefined,
+  price: Number(car.pricePerDay ?? 0),
+  status: car.status,
+  image: car.imageUrl ?? "",
+  imageUrl: car.imageUrl ?? null,
+  year: Number(car.year),
+  transmission: car.transmission,
+  seats: Number(car.seats),
+  description: car.description ?? "",
+});
+
+const getCarImageSrc = (car: Car): string => {
+  const imageUrl = (car as Car & { imageUrl?: string | null }).imageUrl;
+  const rawSrc = imageUrl ?? car.image;
+
+  if (!rawSrc) return "";
+
+  if (
+    rawSrc.startsWith("http://") ||
+    rawSrc.startsWith("https://") ||
+    rawSrc.startsWith("blob:") ||
+    rawSrc.startsWith("data:")
+  ) {
+    return rawSrc;
+  }
+
+  return `${API_BASE_URL}${rawSrc.startsWith("/") ? "" : "/"}${rawSrc}`;
+};
+
+const getStatusColor = (status: Car["status"]) => {
+  switch (status) {
+    case "available":
+      return "bg-green-100 text-green-700";
+    case "rented":
+      return "bg-blue-100 text-blue-700";
+    case "maintenance":
+      return "bg-orange-100 text-orange-700";
+  }
+};
+
+type CarTableRowProps = {
+  car: ManageCar;
+  imageSrc: string;
+  onEdit: (car: ManageCar) => void;
+  onDelete: (id: string) => void;
+};
+
+const CarTableRow = memo(function CarTableRow({
+  car,
+  imageSrc,
+  onEdit,
+  onDelete,
+}: CarTableRowProps) {
+  return (
+    <TableRow className="border-gray-300">
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <ImageWithFallback
+            src={imageSrc}
+            alt={car.name}
+            className="size-12 rounded object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+          <span>{car.name}</span>
+        </div>
+      </TableCell>
+      <TableCell>{car.category}</TableCell>
+      <TableCell>{car.year}</TableCell>
+      <TableCell>{car.transmission}</TableCell>
+      <TableCell>{car.seats}</TableCell>
+      <TableCell>${car.price}</TableCell>
+      <TableCell>
+        <Badge className={getStatusColor(car.status)}>{car.status}</Badge>
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="icon" onClick={() => onEdit(car)}>
+            <Edit className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(car.id)}>
+            <Trash2 className="size-4 text-red-600" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
 export default function ManageCars() {
   const router = useRouter();
   const [cars, setCars] = useState<ManageCar[]>([]);
@@ -75,53 +194,14 @@ export default function ManageCars() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCar, setEditingCar] = useState<ManageCar | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    fuelType: "",
-    category: "",
-    price: "",
-    status: "available" as Car["status"],
-    image: "",
-    year: "",
-    transmission: "",
-    seats: "",
-    description: "",
-  });
+  const [formData, setFormData] = useState(() => ({ ...defaultCarFormData }));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const parseErrorMessage = async (response: Response): Promise<string> => {
-    try {
-      const error = (await response.json()) as { message?: string | string[] };
-      if (Array.isArray(error.message)) return error.message.join(", ");
-      if (typeof error.message === "string") return error.message;
-    } catch {
-      // Fallback to response status text when body isn't JSON.
-    }
-
-    return response.statusText || "Request failed";
-  };
-
-  const handleAuthExpired = () => {
+  const handleAuthExpired = useCallback(() => {
     clearStoredAuth();
     toast.error("Session expired. Please log in again.");
     router.replace("/login");
-  };
-
-  const mapApiCarToUiCar = (car: ApiCar): ManageCar => ({
-    id: car.id,
-    name: car.name,
-    fuelType: car.fuelType ?? "",
-    category: car.category?.name ?? "Unknown",
-    categoryId: car.categoryId ?? car.category?.id ?? undefined,
-    price: Number(car.pricePerDay ?? 0),
-    status: car.status,
-    image: car.imageUrl ?? "",
-    imageUrl: car.imageUrl ?? null,
-    year: Number(car.year),
-    transmission: car.transmission,
-    seats: Number(car.seats),
-    description: car.description ?? "",
-  });
+  }, [router]);
 
   useEffect(() => {
     const loadCars = async () => {
@@ -156,7 +236,7 @@ export default function ManageCars() {
     };
 
     void loadCars();
-  }, []);
+  }, [handleAuthExpired]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -185,50 +265,36 @@ export default function ManageCars() {
     };
 
     void loadCategories();
-  }, []);
+  }, [handleAuthExpired]);
 
-  const getCarImageSrc = (car: Car): string => {
-    const imageUrl = (car as Car & { imageUrl?: string | null }).imageUrl;
-    const rawSrc = imageUrl ?? car.image;
+  const filteredCars = useMemo(() => {
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
-    if (!rawSrc) return "";
-
-    if (
-      rawSrc.startsWith("http://") ||
-      rawSrc.startsWith("https://") ||
-      rawSrc.startsWith("blob:") ||
-      rawSrc.startsWith("data:")
-    ) {
-      return rawSrc;
+    if (!normalizedSearchQuery) {
+      return cars;
     }
 
-    return `${API_BASE_URL}${rawSrc.startsWith("/") ? "" : "/"}${rawSrc}`;
-  };
+    return cars.filter(
+      (car) =>
+        car.name.toLowerCase().includes(normalizedSearchQuery) ||
+        car.category.toLowerCase().includes(normalizedSearchQuery),
+    );
+  }, [cars, searchQuery]);
 
-  const filteredCars = cars.filter(
-    (car) =>
-      car.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      car.category.toLowerCase().includes(searchQuery.toLowerCase()),
+  const carImageSources = useMemo(
+    () =>
+      new Map(filteredCars.map((car) => [car.id, getCarImageSrc(car)] as const)),
+    [filteredCars],
   );
 
-  const handleAddCar = () => {
+  const handleAddCar = useCallback(() => {
     setEditingCar(null);
-    setFormData({
-      name: "",
-      fuelType: "",
-      category: "",
-      price: "",
-      status: "available",
-      image: "",
-      year: "",
-      transmission: "",
-      seats: "",
-      description: "",
-    });
+    setSelectedFile(null);
+    setFormData({ ...defaultCarFormData });
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleEditCar = (car: ManageCar) => {
+  const handleEditCar = useCallback((car: ManageCar) => {
     const matchedCategoryId =
       car.categoryId ??
       categories.find((category) => category.name === car.category)?.id ??
@@ -248,9 +314,9 @@ export default function ManageCars() {
       description: car.description || "",
     });
     setIsDialogOpen(true);
-  };
+  }, [categories]);
 
-  const handleDeleteCar = async (id: string) => {
+  const handleDeleteCar = useCallback(async (id: string) => {
     try {
       const res = await authFetch(`/admin/cars/${id}`, {
         method: "DELETE",
@@ -260,7 +326,7 @@ export default function ManageCars() {
         throw new Error(await parseErrorMessage(res));
       }
 
-      setCars(cars.filter((car) => car.id !== id));
+      setCars((currentCars) => currentCars.filter((car) => car.id !== id));
       toast.success("Car deleted successfully");
     } catch (err) {
       if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
@@ -272,20 +338,20 @@ export default function ManageCars() {
         err instanceof Error ? err.message : "Failed to delete car";
       toast.error(`Delete failed: ${message}`);
     }
-  };
+  }, [handleAuthExpired]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
 
       // optional preview only
       const previewUrl = URL.createObjectURL(file);
-      setFormData({ ...formData, image: previewUrl });
+      setFormData((currentData) => ({ ...currentData, image: previewUrl }));
     }
-  };
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -333,6 +399,7 @@ export default function ManageCars() {
       }
 
       setIsDialogOpen(false);
+      setSelectedFile(null);
     } catch (err) {
       if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
         handleAuthExpired();
@@ -343,18 +410,7 @@ export default function ManageCars() {
         err instanceof Error ? err.message : "Failed to save car data";
       toast.error(`Car save failed: ${message}`);
     }
-  };
-
-  const getStatusColor = (status: Car["status"]) => {
-    switch (status) {
-      case "available":
-        return "bg-green-100 text-green-700";
-      case "rented":
-        return "bg-blue-100 text-blue-700";
-      case "maintenance":
-        return "bg-orange-100 text-orange-700";
-    }
-  };
+  }, [editingCar, formData, handleAuthExpired, selectedFile]);
 
   return (
     <div className="space-y-6">
@@ -587,94 +643,63 @@ export default function ManageCars() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto bg-white rounded-lg p-4">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-gray-300">
-                  <TableHead>Car</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Year</TableHead>
-                  <TableHead>Transmission</TableHead>
-                  <TableHead>Seats</TableHead>
-                  <TableHead>Price/Day</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoadingCars ? (
-                  <TableRow className="border-gray-300">
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-gray-600"
-                    >
-                      Loading cars...
-                    </TableCell>
+          <div className="bg-white rounded-lg p-4">
+            <TableScrollArea className="max-h-[26rem] [will-change:scroll-position] [content-visibility:auto] [contain-intrinsic-size:416px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300">
+              <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-sm">
+                <TableHeader className="bg-white [&_tr]:border-gray-300">
+                  <TableRow className="border-gray-300 bg-white hover:bg-white">
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Car</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Category</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Year</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Transmission</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Seats</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Price/Day</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Status</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 text-right font-medium">Actions</TableHead>
                   </TableRow>
-                ) : carsLoadError ? (
-                  <TableRow className="border-gray-300">
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-red-600"
-                    >
-                      Failed to load cars: {carsLoadError}
-                    </TableCell>
-                  </TableRow>
-                ) : filteredCars.length === 0 ? (
-                  <TableRow className="border-gray-300">
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-gray-600"
-                    >
-                      No cars found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredCars.map((car) => (
-                    <TableRow key={car.id} className="border-gray-300">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <ImageWithFallback
-                            src={getCarImageSrc(car)}
-                            alt={car.name}
-                            className="size-12 rounded object-cover"
-                          />
-                          <span>{car.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{car.category}</TableCell>
-                      <TableCell>{car.year}</TableCell>
-                      <TableCell>{car.transmission}</TableCell>
-                      <TableCell>{car.seats}</TableCell>
-                      <TableCell>${car.price}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(car.status)}>
-                          {car.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditCar(car)}
-                          >
-                            <Edit className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteCar(car.id)}
-                          >
-                            <Trash2 className="size-4 text-red-600" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingCars ? (
+                    <TableRow className="border-gray-300">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-8 text-gray-600"
+                      >
+                        Loading cars...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : carsLoadError ? (
+                    <TableRow className="border-gray-300">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-8 text-red-600"
+                      >
+                        Failed to load cars: {carsLoadError}
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredCars.length === 0 ? (
+                    <TableRow className="border-gray-300">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-8 text-gray-600"
+                      >
+                        No cars found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredCars.map((car) => (
+                      <CarTableRow
+                        key={car.id}
+                        car={car}
+                        imageSrc={carImageSources.get(car.id) ?? ""}
+                        onEdit={handleEditCar}
+                        onDelete={handleDeleteCar}
+                      />
+                    ))
+                  )}
+                </TableBody>
+              </table>
+            </TableScrollArea>
           </div>
         </CardContent>
       </Card>

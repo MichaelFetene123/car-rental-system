@@ -4,11 +4,22 @@ import * as React from "react";
 
 import { cn } from "./utils/utils";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+const tableScrollBaseClass =
+  "relative w-full [scrollbar-gutter:stable] [overscroll-behavior:contain] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] [contain:paint]";
+
+type TableProps = React.ComponentProps<"table"> & {
+  containerClassName?: string;
+};
+
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: TableProps) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn(tableScrollBaseClass, "overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"
@@ -16,6 +27,16 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
         {...props}
       />
     </div>
+  );
+}
+
+function TableScrollArea({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="table-scroll-area"
+      className={cn(tableScrollBaseClass, "overflow-auto", className)}
+      {...props}
+    />
   );
 }
 
@@ -113,4 +134,5 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  TableScrollArea,
 };

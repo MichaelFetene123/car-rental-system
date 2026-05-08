@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { toast } from "sonner";
-import { Badge, badgeVariants } from "@/app/ui/badge";
+import { Badge } from "@/app/ui/badge";
 import { Button } from "@/app/ui/button";
 import { Check, X, Ban, Search } from "lucide-react";
 import {
@@ -197,8 +197,7 @@ const ManageBookingsPage = () => {
           </div>
         </CardHeader>
         <CardContent className="m-4 bg-white rounded-lg">
-          <div className="overflow-x-auto">
-            <Table>
+          <Table>
               <TableHeader>
                 <TableRow className="border-gray-200 ">
                   <TableHead>Booking ID</TableHead>
@@ -278,7 +277,6 @@ const ManageBookingsPage = () => {
                 ))}
               </TableBody>
             </Table>
-          </div>
         </CardContent>
       </Card>
     </div>

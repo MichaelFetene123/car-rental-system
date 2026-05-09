@@ -65,6 +65,12 @@ const mapBackendCarToPublicCar = (
   description: undefined,
 });
 
+const resolveCarImageUrl = (imageUrl: string | null | undefined): string => {
+  if (!imageUrl) return "";
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return `${API_BASE_URL}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+};
+
 const fetchPublicCarById = async (
   id: string,
   signal?: AbortSignal,
@@ -255,7 +261,7 @@ export default function CarDetailPage() {
             {/* Image Gallery */}
             <div className="relative mb-8 rounded-xl overflow-hidden bg-gray-100">
               <ImageWithFallback
-                src={car.imageUrl || fallbackCarImage}
+                src={resolveCarImageUrl(car.imageUrl) || fallbackCarImage}
                 alt={car.name}
                 className="w-full h-125 object-cover"
               />

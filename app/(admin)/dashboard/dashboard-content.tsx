@@ -98,8 +98,8 @@ export default function DashboardContent() {
   const dashboard = data ?? emptyDashboard;
 
   return (
-    <>
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-6 md:space-y-8">
+      <div className="grid gap-4 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {isPending ? (
           <CardsSkeleton />
         ) : (
@@ -121,17 +121,17 @@ export default function DashboardContent() {
         </p>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:gap-5 md:grid-cols-2">
         <RevenueChart data={dashboard.revenueOverview} isLoading={isPending} />
         <BookingChart data={dashboard.weeklyBookings} isLoading={isPending} />
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:gap-5 md:grid-cols-2">
         <CarTypeDistribution
           data={dashboard.fleetDistribution}
           isLoading={isPending}
         />
         <RecentActivity data={dashboard.recentActivity} isLoading={isPending} />
       </div>
-    </>
+    </div>
   );
 }

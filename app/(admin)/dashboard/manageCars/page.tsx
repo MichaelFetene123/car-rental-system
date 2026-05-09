@@ -36,6 +36,8 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/server/server";
 import { authFetch, clearStoredAuth } from "@/app/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { TableSkeletonRows } from "@/app/ui/skeletons";
 
 import { Car } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
@@ -45,9 +47,24 @@ type CarCategory = {
   name: string;
 };
 
+type CarLocation = {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  isActive?: boolean;
+};
+
+type LocationsApiResponse = {
+  success?: boolean;
+  data?: CarLocation[];
+};
+
 type ManageCar = Car & {
   categoryId?: string;
   imageUrl?: string | null;
+  location: string;
+  locationId?: string;
 };
 
 type ApiCar = {
@@ -62,13 +79,21 @@ type ApiCar = {
   description?: string | null;
   imageUrl?: string | null;
   categoryId?: string | null;
+  homeLocationId?: string | null;
   category?: { id: string; name: string } | null;
+  homeLocation?: {
+    id: string;
+    name: string;
+    city?: string | null;
+    state?: string | null;
+  } | null;
 };
 
 const defaultCarFormData = {
   name: "",
   fuelType: "",
   category: "",
+  location: "",
   price: "",
   status: "available" as Car["status"],
   image: "",
@@ -77,6 +102,10 @@ const defaultCarFormData = {
   seats: "",
   description: "",
 };
+
+const DEFAULT_VISIBLE_ROWS = 6;
+const TABLE_HEADER_HEIGHT_PX = 52;
+const TABLE_ROW_HEIGHT_PX = 56;
 
 const parseErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -96,6 +125,8 @@ const mapApiCarToUiCar = (car: ApiCar): ManageCar => ({
   fuelType: car.fuelType ?? "",
   category: car.category?.name ?? "Unknown",
   categoryId: car.categoryId ?? car.category?.id ?? undefined,
+  location: car.homeLocation?.name ?? "Unknown",
+  locationId: car.homeLocationId ?? car.homeLocation?.id ?? undefined,
   price: Number(car.pricePerDay ?? 0),
   status: car.status,
   image: car.imageUrl ?? "",
@@ -150,28 +181,47 @@ const CarTableRow = memo(function CarTableRow({
 }: CarTableRowProps) {
   return (
     <TableRow className="border-gray-300">
-      <TableCell>
-        <div className="flex items-center gap-3">
+      <TableCell className="px-2 py-2.5 align-middle sm:px-3">
+        <div className="flex min-w-0 items-center gap-2">
           <ImageWithFallback
             src={imageSrc}
             alt={car.name}
-            className="size-12 rounded object-cover"
+            className="size-10 shrink-0 rounded object-cover"
             loading="lazy"
             decoding="async"
           />
-          <span>{car.name}</span>
+          <span className="block max-w-full truncate font-medium text-gray-900">
+            {car.name}
+          </span>
         </div>
       </TableCell>
-      <TableCell>{car.category}</TableCell>
-      <TableCell>{car.year}</TableCell>
-      <TableCell>{car.transmission}</TableCell>
-      <TableCell>{car.seats}</TableCell>
-      <TableCell>${car.price}</TableCell>
-      <TableCell>
+      <TableCell className="max-w-[120px] px-2 py-2.5 align-middle sm:px-3">
+        <span className="block truncate text-gray-700" title={car.category}>
+          {car.category}
+        </span>
+      </TableCell>
+      <TableCell className="max-w-[130px] px-2 py-2.5 align-middle sm:px-3">
+        <span className="block truncate text-gray-700" title={car.location}>
+          {car.location}
+        </span>
+      </TableCell>
+      <TableCell className="px-2 py-2.5 text-sm text-gray-700 sm:px-3">
+        {car.year}
+      </TableCell>
+      <TableCell className="px-2 py-2.5 text-sm text-gray-700 sm:px-3">
+        <span className="block truncate">{car.transmission}</span>
+      </TableCell>
+      <TableCell className="px-2 py-2.5 text-sm text-gray-700 sm:px-3">
+        {car.seats}
+      </TableCell>
+      <TableCell className="px-2 py-2.5 font-medium text-gray-800 sm:px-3">
+        ${car.price}
+      </TableCell>
+      <TableCell className="px-2 py-2.5 sm:px-3">
         <Badge className={getStatusColor(car.status)}>{car.status}</Badge>
       </TableCell>
-      <TableCell className="text-right">
-        <div className="flex justify-end gap-2">
+      <TableCell className="w-[86px] px-2 py-2.5 text-right sm:px-3">
+        <div className="flex justify-end gap-1">
           <Button variant="ghost" size="icon" onClick={() => onEdit(car)}>
             <Edit className="size-4" />
           </Button>
@@ -186,16 +236,21 @@ const CarTableRow = memo(function CarTableRow({
 
 export default function ManageCars() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [cars, setCars] = useState<ManageCar[]>([]);
   const [isLoadingCars, setIsLoadingCars] = useState(true);
   const [carsLoadError, setCarsLoadError] = useState<string | null>(null);
   const [categories, setCategories] = useState<CarCategory[]>([]);
+  const [locations, setLocations] = useState<CarLocation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCar, setEditingCar] = useState<ManageCar | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState(() => ({ ...defaultCarFormData }));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [locationFieldError, setLocationFieldError] = useState<string | null>(
+    null,
+  );
 
   const handleAuthExpired = useCallback(() => {
     clearStoredAuth();
@@ -221,7 +276,10 @@ export default function ManageCars() {
         const data = (await res.json()) as ApiCar[];
         setCars(data.map(mapApiCarToUiCar));
       } catch (err) {
-        if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
+        if (
+          err instanceof Error &&
+          /log in again|refresh token|session/i.test(err.message)
+        ) {
           handleAuthExpired();
           return;
         }
@@ -253,7 +311,10 @@ export default function ManageCars() {
         const data = (await res.json()) as CarCategory[];
         setCategories(data);
       } catch (err) {
-        if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
+        if (
+          err instanceof Error &&
+          /log in again|refresh token|session/i.test(err.message)
+        ) {
           handleAuthExpired();
           return;
         }
@@ -267,6 +328,45 @@ export default function ManageCars() {
     void loadCategories();
   }, [handleAuthExpired]);
 
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        const res = await authFetch(`/locations`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res));
+        }
+
+        const data = (await res.json()) as CarLocation[] | LocationsApiResponse;
+
+        const normalizedLocations = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+        setLocations(normalizedLocations);
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          /log in again|refresh token|session/i.test(err.message)
+        ) {
+          handleAuthExpired();
+          return;
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Unable to load locations";
+        toast.error(`Location load failed: ${message}`);
+      }
+    };
+
+    void loadLocations();
+  }, [handleAuthExpired]);
+
   const filteredCars = useMemo(() => {
     const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
@@ -277,143 +377,187 @@ export default function ManageCars() {
     return cars.filter(
       (car) =>
         car.name.toLowerCase().includes(normalizedSearchQuery) ||
-        car.category.toLowerCase().includes(normalizedSearchQuery),
+        car.category.toLowerCase().includes(normalizedSearchQuery) ||
+        car.location.toLowerCase().includes(normalizedSearchQuery),
     );
   }, [cars, searchQuery]);
 
   const carImageSources = useMemo(
     () =>
-      new Map(filteredCars.map((car) => [car.id, getCarImageSrc(car)] as const)),
+      new Map(
+        filteredCars.map((car) => [car.id, getCarImageSrc(car)] as const),
+      ),
     [filteredCars],
   );
 
   const handleAddCar = useCallback(() => {
     setEditingCar(null);
     setSelectedFile(null);
+    setLocationFieldError(null);
     setFormData({ ...defaultCarFormData });
     setIsDialogOpen(true);
   }, []);
 
-  const handleEditCar = useCallback((car: ManageCar) => {
-    const matchedCategoryId =
-      car.categoryId ??
-      categories.find((category) => category.name === car.category)?.id ??
-      "";
+  const handleEditCar = useCallback(
+    (car: ManageCar) => {
+      const matchedCategoryId =
+        car.categoryId ??
+        categories.find((category) => category.name === car.category)?.id ??
+        "";
+      const matchedLocationId =
+        car.locationId ??
+        locations.find((location) => location.name === car.location)?.id ??
+        "";
 
-    setEditingCar(car);
-    setFormData({
-      name: car.name,
-      fuelType: car.fuelType || "",
-      category: matchedCategoryId,
-      price: car.price.toString(),
-      status: car.status,
-      image: car.image,
-      year: car.year.toString(),
-      transmission: car.transmission,
-      seats: car.seats.toString(),
-      description: car.description || "",
-    });
-    setIsDialogOpen(true);
-  }, [categories]);
-
-  const handleDeleteCar = useCallback(async (id: string) => {
-    try {
-      const res = await authFetch(`/admin/cars/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        throw new Error(await parseErrorMessage(res));
-      }
-
-      setCars((currentCars) => currentCars.filter((car) => car.id !== id));
-      toast.success("Car deleted successfully");
-    } catch (err) {
-      if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
-        handleAuthExpired();
-        return;
-      }
-
-      const message =
-        err instanceof Error ? err.message : "Failed to delete car";
-      toast.error(`Delete failed: ${message}`);
-    }
-  }, [handleAuthExpired]);
-
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-
-      // optional preview only
-      const previewUrl = URL.createObjectURL(file);
-      setFormData((currentData) => ({ ...currentData, image: previewUrl }));
-    }
-  }, []);
-
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      const form = new FormData();
-
-      form.append("name", formData.name);
-      form.append("fuelType", formData.fuelType);
-      form.append("categoryId", formData.category);
-      form.append("pricePerDay", formData.price);
-      form.append("status", formData.status);
-      form.append("year", formData.year);
-      form.append("transmission", formData.transmission);
-      form.append("seats", formData.seats);
-      form.append("description", formData.description);
-
-      if (selectedFile) {
-        form.append("image", selectedFile);
-      }
-
-      const endpoint = editingCar
-        ? `/admin/cars/${editingCar.id}`
-        : "/admin/cars";
-
-      const method = editingCar ? "PATCH" : "POST";
-
-      const res = await authFetch(endpoint, {
-        method,
-        body: form,
-      });
-
-      if (!res.ok) {
-        throw new Error(await parseErrorMessage(res));
-      }
-
-      const data = mapApiCarToUiCar((await res.json()) as ApiCar);
-
-      if (editingCar) {
-        setCars((currentCars) =>
-          currentCars.map((c) => (c.id === data.id ? data : c)),
-        );
-        toast.success("Car updated successfully");
-      } else {
-        setCars((currentCars) => [data, ...currentCars]);
-        toast.success("Car added successfully");
-      }
-
-      setIsDialogOpen(false);
+      setEditingCar(car);
       setSelectedFile(null);
-    } catch (err) {
-      if (err instanceof Error && /log in again|refresh token|session/i.test(err.message)) {
-        handleAuthExpired();
+      setLocationFieldError(null);
+      setFormData({
+        name: car.name,
+        fuelType: car.fuelType || "",
+        category: matchedCategoryId,
+        location: matchedLocationId,
+        price: car.price.toString(),
+        status: car.status,
+        image: car.image,
+        year: car.year.toString(),
+        transmission: car.transmission,
+        seats: car.seats.toString(),
+        description: car.description || "",
+      });
+      setIsDialogOpen(true);
+    },
+    [categories, locations],
+  );
+
+  const handleDeleteCar = useCallback(
+    async (id: string) => {
+      try {
+        const res = await authFetch(`/admin/cars/${id}`, {
+          method: "DELETE",
+        });
+
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res));
+        }
+
+        setCars((currentCars) => currentCars.filter((car) => car.id !== id));
+        void queryClient.invalidateQueries({ queryKey: ["publicCars"] });
+        void queryClient.invalidateQueries({ queryKey: ["publicCar"] });
+        toast.success("Car deleted successfully");
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          /log in again|refresh token|session/i.test(err.message)
+        ) {
+          handleAuthExpired();
+          return;
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Failed to delete car";
+        toast.error(`Delete failed: ${message}`);
+      }
+    },
+    [handleAuthExpired, queryClient],
+  );
+
+  const handleImageUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setSelectedFile(file);
+
+        // optional preview only
+        const previewUrl = URL.createObjectURL(file);
+        setFormData((currentData) => ({ ...currentData, image: previewUrl }));
+      }
+    },
+    [],
+  );
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+
+      if (!formData.location) {
+        setLocationFieldError("Please select a location.");
+        toast.error("Please select a location before saving.");
         return;
       }
 
-      const message =
-        err instanceof Error ? err.message : "Failed to save car data";
-      toast.error(`Car save failed: ${message}`);
-    }
-  }, [editingCar, formData, handleAuthExpired, selectedFile]);
+      setLocationFieldError(null);
+
+      try {
+        const form = new FormData();
+
+        form.append("name", formData.name);
+        form.append("fuelType", formData.fuelType);
+        form.append("categoryId", formData.category);
+        form.append("homeLocationId", formData.location);
+        form.append("pricePerDay", formData.price);
+        form.append("status", formData.status);
+        form.append("year", formData.year);
+        form.append("transmission", formData.transmission);
+        form.append("seats", formData.seats);
+        form.append("description", formData.description);
+
+        if (selectedFile) {
+          form.append("image", selectedFile);
+        }
+
+        const endpoint = editingCar
+          ? `/admin/cars/${editingCar.id}`
+          : "/admin/cars";
+
+        const method = editingCar ? "PATCH" : "POST";
+
+        const res = await authFetch(endpoint, {
+          method,
+          body: form,
+        });
+
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res));
+        }
+
+        const data = mapApiCarToUiCar((await res.json()) as ApiCar);
+
+        if (editingCar) {
+          setCars((currentCars) =>
+            currentCars.map((c) => (c.id === data.id ? data : c)),
+          );
+          void queryClient.invalidateQueries({
+            queryKey: ["publicCar", data.id],
+          });
+          toast.success("Car updated successfully");
+        } else {
+          setCars((currentCars) => [data, ...currentCars]);
+          toast.success("Car added successfully");
+        }
+        void queryClient.invalidateQueries({ queryKey: ["publicCars"] });
+
+        setIsDialogOpen(false);
+        setSelectedFile(null);
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          /log in again|refresh token|session/i.test(err.message)
+        ) {
+          handleAuthExpired();
+          return;
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Failed to save car data";
+        toast.error(`Car save failed: ${message}`);
+      }
+    },
+    [editingCar, formData, handleAuthExpired, queryClient, selectedFile],
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className={`${lusitana.className} text-2xl mb-1`}>Manage Cars</h1>
@@ -480,6 +624,45 @@ export default function ManageCars() {
                       )}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Select
+                    value={formData.location}
+                    onValueChange={(value) => {
+                      setLocationFieldError(null);
+                      setFormData({ ...formData, location: value });
+                    }}
+                  >
+                    <SelectTrigger
+                      id="location"
+                      aria-invalid={Boolean(locationFieldError)}
+                      className={
+                        locationFieldError
+                          ? "border-red-500 focus:ring-red-200"
+                          : "border-gray-500"
+                      }
+                    >
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-300">
+                      {locations.length > 0 ? (
+                        locations.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                            {location.isActive === false ? " (Inactive)" : ""}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__no_location__" disabled>
+                          No locations found
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {locationFieldError && (
+                    <p className="text-xs text-red-600">{locationFieldError}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="fuelType">Fuel Type</Label>
@@ -643,35 +826,66 @@ export default function ManageCars() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="bg-white rounded-lg p-4">
-            <TableScrollArea className="max-h-[26rem] [will-change:scroll-position] [content-visibility:auto] [contain-intrinsic-size:416px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300">
-              <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-sm">
+          <div className="rounded-lg bg-white p-3 sm:p-4 md:p-5">
+            <TableScrollArea
+              className="[will-change:scroll-position] [content-visibility:auto] [contain-intrinsic-size:416px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300"
+              style={{
+                maxHeight: `${TABLE_HEADER_HEIGHT_PX + DEFAULT_VISIBLE_ROWS * TABLE_ROW_HEIGHT_PX}px`,
+              }}
+            >
+              <table className="w-full min-w-[950px] table-fixed border-separate border-spacing-0 text-sm">
+                <colgroup>
+                  <col className="w-[210px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[130px]" />
+                  <col className="w-[68px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[62px]" />
+                  <col className="w-[92px]" />
+                  <col className="w-[96px]" />
+                  <col className="w-[86px]" />
+                </colgroup>
                 <TableHeader className="bg-white [&_tr]:border-gray-300">
                   <TableRow className="border-gray-300 bg-white hover:bg-white">
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Car</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Category</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Year</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Transmission</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Seats</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Price/Day</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 font-medium">Status</TableHead>
-                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white py-3 text-right font-medium">Actions</TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Car
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Category
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Location
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Year
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Transmission
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Seats
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Price/Day
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Status
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 text-right font-medium sm:px-3">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoadingCars ? (
-                    <TableRow className="border-gray-300">
-                      <TableCell
-                        colSpan={8}
-                        className="text-center py-8 text-gray-600"
-                      >
-                        Loading cars...
-                      </TableCell>
-                    </TableRow>
+                    <TableSkeletonRows
+                      columns={9}
+                      rows={DEFAULT_VISIBLE_ROWS}
+                    />
                   ) : carsLoadError ? (
                     <TableRow className="border-gray-300">
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="text-center py-8 text-red-600"
                       >
                         Failed to load cars: {carsLoadError}
@@ -680,7 +894,7 @@ export default function ManageCars() {
                   ) : filteredCars.length === 0 ? (
                     <TableRow className="border-gray-300">
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="text-center py-8 text-gray-600"
                       >
                         No cars found.

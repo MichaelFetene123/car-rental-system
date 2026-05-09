@@ -184,7 +184,7 @@ export default function ManageCategoriesPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className={`${lusitana.className} text-2xl mb-1`}>
@@ -243,7 +243,7 @@ export default function ManageCategoriesPage() {
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:gap-5 md:grid-cols-3">
         <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-blue-800">
@@ -303,7 +303,7 @@ export default function ManageCategoriesPage() {
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pt-1 sm:pt-2">
           <div className="rounded-lg bg-white p-4">
             <Table>
               <TableHeader>

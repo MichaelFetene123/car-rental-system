@@ -42,6 +42,12 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   description: undefined,
 });
 
+const resolveCarImageUrl = (imageUrl: string | null | undefined): string => {
+  if (!imageUrl) return "";
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return `${API_BASE_URL}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+};
+
 const fallbackCarImage =
   "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 
@@ -172,7 +178,7 @@ export default function CarsPage() {
                 >
                   <div className="relative">
                     <ImageWithFallback
-                      src={car.imageUrl || fallbackCarImage}
+                      src={resolveCarImageUrl(car.imageUrl) || fallbackCarImage}
                       alt={car.name}
                       className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
                     />

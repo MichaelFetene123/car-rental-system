@@ -2,6 +2,50 @@
 // const shimmer =
 //   'before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent';
 
+import { TableCell, TableRow } from "@/app/ui/table";
+
+type TableSkeletonRowsProps = {
+  columns: number;
+  rows?: number;
+  dense?: boolean;
+};
+
+export function TableSkeletonRows({
+  columns,
+  rows = 5,
+  dense = false,
+}: TableSkeletonRowsProps) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <TableRow
+          key={`table-skeleton-row-${rowIndex}`}
+          className="animate-pulse border-gray-200"
+        >
+          {Array.from({ length: columns }).map((__, columnIndex) => (
+            <TableCell
+              key={`table-skeleton-cell-${rowIndex}-${columnIndex}`}
+              className={dense ? "py-2" : "py-3"}
+            >
+              <div
+                className="h-4 rounded-md bg-gray-200/90"
+                style={{
+                  width:
+                    columnIndex === 0
+                      ? "80%"
+                      : columnIndex === columns - 1
+                        ? "60%"
+                        : "70%",
+                }}
+              />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
 export function CardSkeleton() {
   return (
     <div className="relative overflow-hidden rounded-xl border border-gray-300 bg-white no-blur">

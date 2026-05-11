@@ -9,9 +9,10 @@ import {
   Edit,
   AlertCircle,
   Trash2,
+  Check,
+  Circle,
 } from "lucide-react";
 import { Card } from "@/app/ui/card";
-import { Badge } from "@/app/ui/badge";
 import { Button } from "@/app/ui/button";
 import {
   Dialog,
@@ -37,8 +38,23 @@ import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
 import { useCurrentUser } from "@/app/lib/auth-queries";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
-type BookingStatus = "confirmed" | "pending" | "cancelled";
+import { Switch } from "@/app/ui/switch";
+import {
+  BookingStatusBadge,
+  PaymentStatusBadge,
+} from "@/app/ui/status-badges";
+import type { BookingStatus, PaymentStatus } from "@/app/lib/status";
+import {
+  ARCHIVED_BOOKING_STATUSES,
+  bookingStatusLabels,
+  isTerminalBookingStatus,
+} from "@/app/lib/status";
+import {
+  isPaymentCovered,
+  resolvePaymentStatus,
+  summarizePayments,
+} from "@/app/lib/payment-summary";
+import type { PaymentSummary } from "@/app/lib/payment-summary";
 
 type Booking = {
   id: string;
@@ -57,14 +73,19 @@ type Booking = {
   returnLocationId: string;
   totalPrice: number;
   bookedOn: string;
+  payments: BackendPayment[];
+  paymentSummary: PaymentSummary;
+  paymentStatus: PaymentStatus;
+  isPaid: boolean;
 };
 
-type BackendBookingStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "cancelled"
-  | "completed";
+type BackendPayment = {
+  id: string;
+  status: PaymentStatus;
+  amount: number | string;
+  refundedAmount?: number | string | null;
+  paidAt?: string | null;
+};
 
 type BackendBooking = {
   id: string;
@@ -73,13 +94,14 @@ type BackendBooking = {
   returnAt: string;
   bookedAt: string;
   totalAmount: number | string;
-  status: BackendBookingStatus;
+  status: BookingStatus;
   carNameSnapshot: string | null;
   carTypeSnapshot: string | null;
   carYearSnapshot: number | null;
   carImageSnapshot: string | null;
   pickupLocation?: { id: string; name: string } | null;
   returnLocation?: { id: string; name: string } | null;
+  payments?: BackendPayment[];
 };
 
 type UpdateBookingPayload = {
@@ -118,33 +140,112 @@ const formatDateForDisplay = (dateStr: string): string => {
   }
 };
 
-const mapBackendStatusToUi = (status: BackendBookingStatus): BookingStatus => {
-  if (status === "approved") return "confirmed";
-  if (status === "pending") return "pending";
-  return "cancelled";
-};
+const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => {
+  const payments = booking.payments ?? [];
+  const totalAmount = Number(booking.totalAmount);
+  const paymentSummary = summarizePayments(payments);
+  const paymentStatus = resolvePaymentStatus(
+    paymentSummary,
+    totalAmount,
+    payments,
+  );
+  const isPaid = isPaymentCovered(paymentSummary, totalAmount);
 
-const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => ({
-  id: booking.id,
-  carId: booking.carId,
-  carName: booking.carNameSnapshot ?? "Unknown Car",
-  carImage: booking.carImageSnapshot ?? "",
-  carYear: booking.carYearSnapshot ?? new Date().getFullYear(),
-  carType: booking.carTypeSnapshot ?? "Unknown",
-  status: mapBackendStatusToUi(booking.status),
-  rentalPeriod: `${formatDateForDisplay(booking.pickupAt)} - ${formatDateForDisplay(booking.returnAt)}`,
-  pickupDate: booking.pickupAt,
-  returnDate: booking.returnAt,
-  pickupLocation: booking.pickupLocation?.name ?? "Unknown",
-  returnLocation: booking.returnLocation?.name ?? "Unknown",
-  pickupLocationId: booking.pickupLocation?.id ?? "",
-  returnLocationId: booking.returnLocation?.id ?? "",
-  totalPrice: Number(booking.totalAmount),
-  bookedOn: formatDateForDisplay(booking.bookedAt),
-});
+  return {
+    id: booking.id,
+    carId: booking.carId,
+    carName: booking.carNameSnapshot ?? "Unknown Car",
+    carImage: booking.carImageSnapshot ?? "",
+    carYear: booking.carYearSnapshot ?? new Date().getFullYear(),
+    carType: booking.carTypeSnapshot ?? "Unknown",
+    status: booking.status,
+    rentalPeriod: `${formatDateForDisplay(booking.pickupAt)} - ${formatDateForDisplay(booking.returnAt)}`,
+    pickupDate: booking.pickupAt,
+    returnDate: booking.returnAt,
+    pickupLocation: booking.pickupLocation?.name ?? "Unknown",
+    returnLocation: booking.returnLocation?.name ?? "Unknown",
+    pickupLocationId: booking.pickupLocation?.id ?? "",
+    returnLocationId: booking.returnLocation?.id ?? "",
+    totalPrice: totalAmount,
+    bookedOn: formatDateForDisplay(booking.bookedAt),
+    payments,
+    paymentSummary,
+    paymentStatus,
+    isPaid,
+  };
+};
 
 const toBookingIsoDate = (dateOnly: string) =>
   new Date(`${dateOnly}T09:00:00.000Z`).toISOString();
+
+const BookingTimeline = ({
+  status,
+  isPaid,
+}: {
+  status: BookingStatus;
+  isPaid: boolean;
+}) => {
+  const steps = [
+    { key: "pending", label: "Requested", complete: true },
+    { key: "payment", label: "Payment", complete: isPaid },
+    {
+      key: "approved",
+      label: "Approved",
+      complete: ["approved", "active", "completed"].includes(status),
+    },
+    {
+      key: "active",
+      label: "Active",
+      complete: ["active", "completed"].includes(status),
+    },
+    { key: "completed", label: "Completed", complete: status === "completed" },
+  ];
+
+  const terminalBannerClass =
+    status === "cancelled"
+      ? "border-gray-200 bg-gray-50 text-gray-600"
+      : status === "no_show"
+        ? "border-orange-200 bg-orange-50 text-orange-700"
+        : "border-rose-200 bg-rose-50 text-rose-700";
+
+  return (
+    <div className="mt-4">
+      <div className="grid grid-cols-5 gap-2">
+        {steps.map((step) => (
+          <div key={step.key} className="flex flex-col items-center gap-1">
+            <span
+              className={`flex size-6 items-center justify-center rounded-full ${
+                step.complete
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-400"
+              }`}
+            >
+              {step.complete ? (
+                <Check className="size-3" />
+              ) : (
+                <Circle className="size-3" />
+              )}
+            </span>
+            <span
+              className={`text-[11px] ${
+                step.complete ? "text-gray-700" : "text-gray-400"
+              }`}
+            >
+              {step.label}
+            </span>
+          </div>
+        ))}
+      </div>
+      {isTerminalBookingStatus(status) ? (
+        <div
+          className={`mt-3 rounded-md border px-3 py-2 text-xs ${terminalBannerClass}`}
+        >
+          {bookingStatusLabels[status]} booking.
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 const fetchMyBookings = async (): Promise<Booking[]> => {
   const response = await authFetch(`/bookings/me`, {
@@ -186,6 +287,15 @@ export default function MyBookingsPage() {
   const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const visibleBookings = useMemo(() => {
+    if (showArchived) return bookings;
+
+    return bookings.filter(
+      (booking) => !ARCHIVED_BOOKING_STATUSES.includes(booking.status),
+    );
+  }, [bookings, showArchived]);
 
   const locationOptions = useMemo(() => {
     const locationMap = new Map<string, string>();
@@ -223,9 +333,8 @@ export default function MyBookingsPage() {
   const handleEditClick = (booking: Booking) => {
     setEditingBooking(booking);
 
-    const dates = booking.rentalPeriod.split(" - ");
-    const pickupDate = dates[0] ? convertToDateInput(dates[0]) : "";
-    const returnDate = dates[1] ? convertToDateInput(dates[1]) : "";
+    const pickupDate = convertToDateInput(booking.pickupDate);
+    const returnDate = convertToDateInput(booking.returnDate);
 
     setEditForm({
       pickupDate,
@@ -355,7 +464,7 @@ export default function MyBookingsPage() {
   };
 
   const canModifyBooking = (booking: Booking): boolean => {
-    return booking.status === "pending";
+    return booking.status === "pending" && !booking.isPaid;
   };
 
   const canCancelBooking = (booking: Booking): boolean => {
@@ -364,7 +473,7 @@ export default function MyBookingsPage() {
 
   const selectedBookingForPayment = useMemo(() => {
     const activeBooking = bookings.find(
-      (booking) => booking.status === "pending",
+      (booking) => booking.status === "pending" && !booking.isPaid,
     );
 
     return activeBooking ?? null;
@@ -382,10 +491,19 @@ export default function MyBookingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8 flex items-start justify-between gap-4">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">My Bookings</h1>
             <p className="text-gray-600">View and manage your car bookings</p>
+            <div className="mt-3 flex items-center gap-2">
+              <Switch
+                checked={showArchived}
+                onCheckedChange={setShowArchived}
+              />
+              <span className="text-sm text-gray-600">
+                Show completed and archived
+              </span>
+            </div>
           </div>
           <Button
             onClick={handleProceedToPayment}
@@ -405,7 +523,12 @@ export default function MyBookingsPage() {
         {isLoadingBookings ? <MyBookingsSkeleton count={2} /> : null}
 
         <div className="space-y-6">
-          {bookings.map((booking) => (
+          {!isLoadingBookings && visibleBookings.length === 0 ? (
+            <Card className="p-6 text-center text-gray-600">
+              No bookings to show.
+            </Card>
+          ) : null}
+          {visibleBookings.map((booking) => (
             <Card key={booking.id} className="overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
                 <div className="md:col-span-1">
@@ -432,22 +555,15 @@ export default function MyBookingsPage() {
                           <p className="text-xs text-gray-500 mb-1">
                             Booking #{booking.id}
                           </p>
-                          <Badge
-                            variant={
-                              booking.status === "confirmed"
-                                ? "default"
-                                : booking.status === "pending"
-                                  ? "secondary"
-                                  : "destructive"
-                            }
-                            className={
-                              booking.status === "confirmed"
-                                ? "bg-green-500 hover:bg-green-600"
-                                : "bg-yellow-200 hover:bg-yellow-300"
-                            }
-                          >
-                            {booking.status}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-2">
+                            <BookingStatusBadge status={booking.status} />
+                            <PaymentStatusBadge status={booking.paymentStatus} />
+                          </div>
+                          {booking.status === "pending" && booking.isPaid ? (
+                            <p className="mt-2 text-[11px] text-amber-700">
+                              Payment completed, awaiting approval.
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -505,6 +621,11 @@ export default function MyBookingsPage() {
                         </div>
                       </div>
                     </div>
+
+                    <BookingTimeline
+                      status={booking.status}
+                      isPaid={booking.isPaid}
+                    />
 
                     <div className="mt-auto pt-4 border-t border-gray-300 flex items-center justify-between">
                       <div>
@@ -703,7 +824,7 @@ export default function MyBookingsPage() {
                     <p className="text-xs text-amber-700 mt-1">
                       - Deleting a booking is irreversible and will remove all
                       associated data.
-                      <br />- If the booking is confirmed or pending, a refund
+                      <br />- If the booking is pending or approved, a refund
                       may be applicable based on our cancellation policy.
                     </p>
                   </div>

@@ -9,13 +9,21 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { PaymentBookingsSkeleton } from "@/app/ui/skeletons";
 import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
 import { useCurrentUser } from "@/app/lib/auth-queries";
+import type { BookingStatus, PaymentStatus } from "@/app/lib/status";
+import {
+  isPaymentCovered,
+  resolvePaymentStatus,
+  summarizePayments,
+} from "@/app/lib/payment-summary";
+import { BookingStatusBadge, PaymentStatusBadge } from "@/app/ui/status-badges";
 
-type BackendBookingStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "cancelled"
-  | "completed";
+type BackendPayment = {
+  id: string;
+  status: PaymentStatus;
+  amount: number | string;
+  refundedAmount?: number | string | null;
+  paidAt?: string | null;
+};
 
 type BackendBooking = {
   id: string;
@@ -25,13 +33,14 @@ type BackendBooking = {
   returnAt: string;
   bookedAt: string;
   totalAmount: number | string;
-  status: BackendBookingStatus;
+  status: BookingStatus;
   carNameSnapshot: string | null;
   carTypeSnapshot: string | null;
   carYearSnapshot: number | null;
   carImageSnapshot: string | null;
   pickupLocation?: { id: string; name: string } | null;
   returnLocation?: { id: string; name: string } | null;
+  payments?: BackendPayment[];
 };
 
 type PaymentBooking = {
@@ -50,7 +59,10 @@ type PaymentBooking = {
   pickupLocationId: string;
   returnLocationId: string;
   totalAmount: number;
-  status: BackendBookingStatus;
+  status: BookingStatus;
+  payments: BackendPayment[];
+  paymentStatus: PaymentStatus;
+  isPaid: boolean;
 };
 
 const fallbackBookingImage =
@@ -92,24 +104,38 @@ const fetchPaymentBookings = async (): Promise<PaymentBooking[]> => {
   }
 
   const backendBookings = (await response.json()) as BackendBooking[];
-  return backendBookings.map((booking) => ({
-    id: booking.id,
-    bookingCode: booking.bookingCode,
-    carId: booking.carId,
-    carName: booking.carNameSnapshot ?? "Unknown Car",
-    carType: booking.carTypeSnapshot ?? "Unknown",
-    carYear: booking.carYearSnapshot ?? new Date().getFullYear(),
-    carImage: booking.carImageSnapshot ?? "",
-    pickupAt: booking.pickupAt,
-    returnAt: booking.returnAt,
-    bookedAt: booking.bookedAt,
-    pickupLocation: booking.pickupLocation?.name ?? "Unknown",
-    returnLocation: booking.returnLocation?.name ?? "Unknown",
-    pickupLocationId: booking.pickupLocation?.id ?? "",
-    returnLocationId: booking.returnLocation?.id ?? "",
-    totalAmount: Number(booking.totalAmount),
-    status: booking.status,
-  }));
+  return backendBookings.map((booking) => {
+    const payments = booking.payments ?? [];
+    const totalAmount = Number(booking.totalAmount);
+    const paymentSummary = summarizePayments(payments);
+    const paymentStatus = resolvePaymentStatus(
+      paymentSummary,
+      totalAmount,
+      payments,
+    );
+
+    return {
+      id: booking.id,
+      bookingCode: booking.bookingCode,
+      carId: booking.carId,
+      carName: booking.carNameSnapshot ?? "Unknown Car",
+      carType: booking.carTypeSnapshot ?? "Unknown",
+      carYear: booking.carYearSnapshot ?? new Date().getFullYear(),
+      carImage: booking.carImageSnapshot ?? "",
+      pickupAt: booking.pickupAt,
+      returnAt: booking.returnAt,
+      bookedAt: booking.bookedAt,
+      pickupLocation: booking.pickupLocation?.name ?? "Unknown",
+      returnLocation: booking.returnLocation?.name ?? "Unknown",
+      pickupLocationId: booking.pickupLocation?.id ?? "",
+      returnLocationId: booking.returnLocation?.id ?? "",
+      totalAmount,
+      status: booking.status,
+      payments,
+      paymentStatus,
+      isPaid: isPaymentCovered(paymentSummary, totalAmount),
+    };
+  });
 };
 
 export default function PaymentPage() {
@@ -142,22 +168,27 @@ export default function PaymentPage() {
     [bookings],
   );
 
+  const unpaidPendingBookings = useMemo(
+    () => pendingBookings.filter((booking) => !booking.isPaid),
+    [pendingBookings],
+  );
+
   const bookingStats = useMemo(() => {
-    const totalCars = pendingBookings.length;
-    const totalMoney = pendingBookings.reduce(
+    const totalCars = unpaidPendingBookings.length;
+    const totalMoney = unpaidPendingBookings.reduce(
       (sum, booking) => sum + booking.totalAmount,
       0,
     );
 
     return { totalCars, totalMoney };
-  }, [pendingBookings]);
+  }, [unpaidPendingBookings]);
 
   const pendingBooking = useMemo(() => {
-    const pending = pendingBookings
+    const pending = unpaidPendingBookings
       .slice()
       .sort((a, b) => +new Date(b.bookedAt) - +new Date(a.bookedAt));
     return pending[0] ?? null;
-  }, [pendingBookings]);
+  }, [unpaidPendingBookings]);
 
   const handleChapaPayment = async () => {
     setPaymentError(null);
@@ -231,6 +262,11 @@ export default function PaymentPage() {
             <PaymentBookingsSkeleton count={1} />
           ) : pendingBookings.length > 0 ? (
             <div className="space-y-4">
+              {unpaidPendingBookings.length === 0 ? (
+                <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  All pending bookings are already paid and awaiting approval.
+                </Card>
+              ) : null}
               {pendingBookings.map((booking) => (
                 <div
                   key={booking.id}
@@ -262,7 +298,15 @@ export default function PaymentPage() {
 
                   <div className="sm:text-right">
                     <p className="text-xs text-gray-500">Status</p>
-                    <p className="font-medium capitalize">{booking.status}</p>
+                    <div className="mt-2 flex flex-col gap-2 sm:items-end">
+                      <BookingStatusBadge status={booking.status} />
+                      <PaymentStatusBadge status={booking.paymentStatus} />
+                    </div>
+                    {booking.status === "pending" && booking.isPaid ? (
+                      <p className="mt-2 text-[11px] text-amber-700">
+                        Payment completed, awaiting approval.
+                      </p>
+                    ) : null}
                     <p className="text-xs text-gray-500 mt-2">Price</p>
                     <p className="text-lg font-bold text-blue-600">
                       ${booking.totalAmount}
@@ -277,10 +321,15 @@ export default function PaymentPage() {
         </Card>
 
         <Card className="p-6 border-gray-200">
-          <p className="text-sm text-gray-500 mb-1">Total Amount</p>
+          <p className="text-sm text-gray-500 mb-1">Amount Due</p>
           <p className="text-3xl font-bold text-blue-600">
             ${bookingStats.totalMoney}
           </p>
+          {pendingBookings.length > 0 && unpaidPendingBookings.length === 0 ? (
+            <p className="mt-2 text-sm text-amber-700">
+              No outstanding balance. Pending bookings are waiting for approval.
+            </p>
+          ) : null}
           <div className="mt-4 flex justify-end">
             <Button
               className="bg-blue-600 hover:bg-blue-700 text-white"

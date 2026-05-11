@@ -18,11 +18,16 @@ import { Card } from "@/app/ui/card";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { CarDetailSkeleton } from "@/app/ui/skeletons";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
-import { getUnavailableDetailLabel } from "@/app/lib/availability";
+import {
+  getUnavailableDetailLabel,
+  getUnavailableRangeLabel,
+  isDateRangeUnavailable,
+} from "@/app/lib/availability";
 import { authFetch } from "@/app/lib/auth";
 import { API_BASE_URL } from "@/server/server";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { CarStatusBadge } from "@/app/ui/status-badges";
 
 const fallbackCarImage =
   "https://images.unsplash.com/photo-1624968789500-08275d8c3265?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
@@ -60,6 +65,7 @@ const mapBackendCarToPublicCar = (
   transmission: car.transmission,
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
+  status: car.status,
   available: car.status === "available",
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
@@ -212,6 +218,22 @@ export default function CarDetailPage() {
   }
 
   const unavailableDetail = getUnavailableDetailLabel(car.unavailablePeriod);
+  const unavailableRange = getUnavailableRangeLabel(car.unavailablePeriod);
+  const pickupDateValue = pickupDate
+    ? new Date(`${pickupDate}T09:00:00.000Z`)
+    : null;
+  const returnDateValue = returnDate
+    ? new Date(`${returnDate}T09:00:00.000Z`)
+    : null;
+  const hasDateOverlap =
+    pickupDateValue && returnDateValue
+      ? isDateRangeUnavailable(
+          car.unavailablePeriod,
+          pickupDateValue,
+          returnDateValue,
+        )
+      : false;
+  const isCarUnavailable = car.status !== "available";
 
   const handleBookNow = async () => {
     if (bookingMutation.isPending) return;
@@ -223,6 +245,16 @@ export default function CarDetailPage() {
 
     if (returnDate <= pickupDate) {
       toast.error("Return date must be after pickup date");
+      return;
+    }
+
+    if (isCarUnavailable) {
+      toast.error("This car is not available for booking right now.");
+      return;
+    }
+
+    if (pickupDateValue && returnDateValue && hasDateOverlap) {
+      toast.error("Selected dates overlap an unavailable booking window.");
       return;
     }
 
@@ -288,6 +320,9 @@ export default function CarDetailPage() {
                 <p className="text-gray-600">
                   {car.year} • {car.category}
                 </p>
+                <div className="mt-3">
+                  <CarStatusBadge status={car.status} />
+                </div>
               </div>
 
               {unavailableDetail ? (
@@ -369,6 +404,11 @@ export default function CarDetailPage() {
                   <span className="text-3xl font-bold">${car.pricePerDay}</span>
                   <span className="text-gray-600">per day</span>
                 </div>
+                {unavailableRange ? (
+                  <p className="text-xs text-amber-700">
+                    Unavailable: {unavailableRange}
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-4 mb-6">
@@ -400,7 +440,7 @@ export default function CarDetailPage() {
                 onClick={handleBookNow}
                 className="w-full mb-4 bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300"
                 size="lg"
-                disabled={bookingMutation.isPending}
+                disabled={bookingMutation.isPending || isCarUnavailable || hasDateOverlap}
                 aria-busy={bookingMutation.isPending}
               >
                 {bookingMutation.isPending ? (
@@ -416,6 +456,18 @@ export default function CarDetailPage() {
               {bookingMutation.isError ? (
                 <p className="mb-3 text-sm text-red-600">
                   An error occurred: {bookingMutation.error.message}
+                </p>
+              ) : null}
+
+              {isCarUnavailable ? (
+                <p className="mb-3 text-sm text-amber-700">
+                  This car is currently {car.status.replace("_", " ")}. Please choose another vehicle.
+                </p>
+              ) : null}
+
+              {!isCarUnavailable && hasDateOverlap ? (
+                <p className="mb-3 text-sm text-amber-700">
+                  Selected dates overlap an unavailable period. Please choose different dates.
                 </p>
               ) : null}
 

@@ -64,10 +64,10 @@ const mockTemplates: NotificationTemplate[] = [
     id: "1",
     name: "Booking Confirmation",
     type: "email",
-    trigger: "booking_confirmed",
-    subject: "Your Booking is Confirmed - {{booking_id}}",
+    trigger: "booking_approved",
+    subject: "Your Booking is Approved - {{booking_id}}",
     content:
-      "Dear {{customer_name}},\n\nYour booking {{booking_id}} has been confirmed...",
+      "Dear {{customer_name}},\n\nYour booking {{booking_id}} has been approved...",
     enabled: true,
   },
   {
@@ -105,7 +105,7 @@ const mockLogs: NotificationLog[] = [
     id: "1",
     type: "email",
     recipient: "john@example.com",
-    subject: "Your Booking is Confirmed - BK-2024-001",
+    subject: "Your Booking is Approved - BK-2024-001",
     status: "sent",
     sentAt: "2024-02-22 10:30 AM",
   },

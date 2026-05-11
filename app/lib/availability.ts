@@ -41,3 +41,32 @@ export const getUnavailableDetailLabel = (
 
   return `This car is unavailable from ${formatShortDate(start)} to ${formatShortDate(end)} (${dayCount} ${dayCount === 1 ? "day" : "days"}).`;
 };
+
+export const getUnavailableRangeLabel = (
+  period?: UnavailablePeriod | null,
+) => {
+  if (!period) return null;
+
+  const start = new Date(period.startDate);
+  const end = new Date(period.endDate);
+  const dayCount = Math.max(0, period.days);
+
+  return `${formatShortDate(start)} - ${formatShortDate(end)} (${dayCount} ${dayCount === 1 ? "day" : "days"})`;
+};
+
+export const isDateRangeUnavailable = (
+  period: UnavailablePeriod | null | undefined,
+  pickupDate: Date,
+  returnDate: Date,
+  bufferDays = 1,
+) => {
+  if (!period) return false;
+
+  const start = startOfDay(new Date(period.startDate));
+  const end = startOfDay(new Date(period.endDate));
+  const bufferMs = bufferDays * dayInMs;
+  const windowStart = new Date(start.getTime() - bufferMs);
+  const windowEnd = new Date(end.getTime() + bufferMs);
+
+  return pickupDate < windowEnd && returnDate > windowStart;
+};

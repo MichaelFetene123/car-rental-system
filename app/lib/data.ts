@@ -1,4 +1,5 @@
 // lib/card.ts
+import type { BookingStatus, CarStatus } from "@/app/lib/status";
 
 export interface Car {
   id: string;
@@ -6,7 +7,7 @@ export interface Car {
   fuelType?: string;
   category: string;
   price: number;
-  status: "available" | "rented" | "maintenance";
+  status: CarStatus;
   image: string;
   year: number;
   transmission: string;
@@ -25,6 +26,7 @@ export type PublicCar = {
   transmission: string;
   pricePerDay: number;
   imageUrl: string;
+  status: CarStatus;
   available: boolean;
   unavailablePeriod?: {
     startDate: string;
@@ -43,7 +45,7 @@ export type BackendCar = {
   transmission: string;
   pricePerDay: number | string;
   imageUrl: string | null;
-  status: "available" | "rented" | "maintenance";
+  status: CarStatus;
   unavailablePeriod?: {
     startDate: string;
     endDate: string;
@@ -130,7 +132,7 @@ export interface Booking {
   pickupDate: string;
   returnDate: string;
   totalAmount: number;
-  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
+  status: BookingStatus;
   location: string;
 }
 
@@ -152,7 +154,7 @@ export const initialBookings: Booking[] = [
     pickupDate: "2026-02-10",
     returnDate: "2026-02-17",
     totalAmount: 665,
-    status: "approved",
+    status: "active",
     location: "Airport",
   },
   {
@@ -182,7 +184,7 @@ export const initialBookings: Booking[] = [
     pickupDate: "2026-02-16",
     returnDate: "2026-02-18",
     totalAmount: 500,
-    status: "rejected",
+    status: "no_show",
     location: "Airport",
   },
 ];

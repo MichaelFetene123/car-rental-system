@@ -1,31 +1,26 @@
 "use client";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Search,
-  Filter,
-  Users,
-  Fuel,
-  Settings,
-  MapPin,
-  BadgeAlert,
-} from "lucide-react";
+import { Search, Filter, Users, Fuel, Settings, MapPin, BadgeAlert } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Badge } from "@/app/ui/badge";
 import { Card } from "@/app/ui/card";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
-// import { mockCars } from "@/app/lib/mockData";
-import { normalize } from "path";
-import { match } from "assert";
-import { BackendCar, PublicCar } from "@/app/lib/data";
+import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
 import { API_BASE_URL } from "@/server/server";
 import { useQuery } from "@tanstack/react-query";
-import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
-import { getUnavailableBadgeLabel } from "@/app/lib/availability";
+import type { BackendCar, PublicCar } from "@/app/lib/data";
+import {
+  getUnavailableBadgeLabel,
+  getUnavailableRangeLabel,
+} from "@/app/lib/availability";
+import { CarStatusBadge } from "@/app/ui/status-badges";
 
 const HOME_RECENT_CARS_LIMIT = 6;
 const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
+
 const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   id: car.id,
   name: car.name,
@@ -37,6 +32,7 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   transmission: car.transmission,
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
+  status: car.status,
   available: car.status === "available",
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
@@ -187,23 +183,16 @@ export default function CarsPage() {
                         car.unavailablePeriod,
                       );
 
-                      if (unavailableBadge) {
-                        return (
-                          <Badge className="absolute top-4 left-4 bg-amber-600 text-white">
-                            {unavailableBadge}
-                          </Badge>
-                        );
-                      }
-
-                      if (car.available) {
-                        return (
-                          <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
-                            Available Now
-                          </Badge>
-                        );
-                      }
-
-                      return null;
+                      return (
+                        <div className="absolute top-4 left-4 flex flex-col gap-2">
+                          <CarStatusBadge status={car.status} />
+                          {unavailableBadge ? (
+                            <Badge className="bg-amber-600 text-white">
+                              {unavailableBadge}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      );
                     })()}
                     <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
                       ${car.pricePerDay}/day
@@ -234,6 +223,18 @@ export default function CarsPage() {
                         <span>{car.location}</span>
                       </div>
                     </div>
+
+                    {car.unavailablePeriod ? (
+                      <p className="mt-4 text-xs text-amber-700">
+                        Unavailable: {getUnavailableRangeLabel(car.unavailablePeriod)}
+                      </p>
+                    ) : car.status !== "available" ? (
+                      <p className="mt-4 text-xs text-gray-500">
+                        {car.status === "rented"
+                          ? "Currently rented"
+                          : "Under maintenance"}
+                      </p>
+                    ) : null}
                   </div>
                 </Card>
               ))

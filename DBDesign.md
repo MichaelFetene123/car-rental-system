@@ -1,3 +1,7 @@
+## Domain Models (Enums)
+BookingStatus: pending | approved | active | completed | rejected | cancelled | no_show
+PaymentStatus: pending | completed | partially_refunded | refunded | failed
+CarStatus: available | rented | maintenance
 
 ## 1) Table "users" {
   "id" UUID [pk, default: `gen_random_uuid()`]
@@ -117,7 +121,7 @@
   "return_location_id" UUID
   "pickup_at" TIMESTAMP [not null]
   "return_at" TIMESTAMP [not null]
-  "status" VARCHAR(20) [not null, check: `status IN ('pending','confirmed','approved','rejected','cancelled','completed')`]
+  "status" VARCHAR(20) [not null, check: `status IN ('pending','approved','active','completed','rejected','cancelled','no_show')`]
   "total_amount" DECIMAL(10,2) [not null]
   "booked_at" TIMESTAMP [not null, default: `CURRENT_TIMESTAMP`]
   "car_name_snapshot" VARCHAR(120)
@@ -140,8 +144,8 @@
   "amount" DECIMAL(10,2) [not null]
   "tax" DECIMAL(10,2) [not null, default: 0]
   "fees" DECIMAL(10,2) [not null, default: 0]
-  "method" VARCHAR(30) [not null, check: `method IN ('credit_card', 'mobile_money', 'cash')`]
-  "status" VARCHAR(20) [not null, check: `status IN ('pending','completed','refunded','failed')`]
+  "method" VARCHAR(30) [not null, check: `method IN ('credit_card', 'mobile_money', 'cash', 'chapa')`]
+  "status" VARCHAR(20) [not null, check: `status IN ('pending','completed','partially_refunded','refunded','failed')`]
   "paid_at" TIMESTAMP
   "refund_reason" TEXT
   "created_at" TIMESTAMP [not null, default: `CURRENT_TIMESTAMP`]

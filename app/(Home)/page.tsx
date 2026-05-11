@@ -3,31 +3,22 @@ import { Search, Users, Fuel, Settings, MapPin, Calendar } from "lucide-react";
 // import PublicHeader from "@/app/ui/public-header";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
+                      {(() => {
+                        const unavailableBadge = getUnavailableBadgeLabel(
+                          car.unavailablePeriod,
+                        );
 
-import { useMemo, useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/ui/select";
-// import carImage from "figma:asset/4ad8fba70d6d1d6bb955a4c435e3235b26c7faa4.png";
-import { useRouter } from "next/navigation";
-import { Button } from "@/app/ui/button";
-import { Input } from "@/app/ui/input";
-import { Badge } from "@/app/ui/badge";
-import { Card } from "@/app/ui/card";
-import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
-import { API_BASE_URL } from "@/server/server";
-import { useQuery } from "@tanstack/react-query";
-import { getUnavailableBadgeLabel } from "@/app/lib/availability";
-
-const HOME_RECENT_CARS_LIMIT = 6;
-const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
-
-const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
-  id: car.id,
+                        return (
+                          <div className="absolute top-4 left-4 flex flex-col gap-2">
+                            <CarStatusBadge status={car.status} />
+                            {unavailableBadge ? (
+                              <Badge className="bg-amber-600 text-white">
+                                {unavailableBadge}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
   name: car.name,
   year: car.year,
   category: car.category?.name ?? "Other",
@@ -37,6 +28,7 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   transmission: car.transmission,
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
+  status: car.status,
   available: car.status === "available",
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
@@ -141,16 +133,16 @@ export default function HomePage() {
   return (
     <section>
       {/* <PublicHeader className="shadow-md shadow-blue-100" /> */}
-      <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-white overflow-hidden">
+      <div className="min-h-screen bg-linear-to-br from-white via-blue-50/30 to-white overflow-hidden">
         {/* Hero Section */}
         <section className="relative pt-12 pb-24">
           {/* Decorative Background Elements */}
           <div
-            className="absolute top-0 right-0 w-[900px] h-[900px] bg-gradient-to-br from-blue-100/40 to-blue-200/30 rounded-full blur-3xl opacity-60 -z-10"
+            className="absolute top-0 right-0 w-225 h-225 bg-linear-to-br from-blue-100/40 to-blue-200/30 rounded-full blur-3xl opacity-60 -z-10"
             style={{ transform: "translate(40%, -30%)" }}
           ></div>
           <div
-            className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-gradient-to-tr from-blue-50/30 to-transparent rounded-full blur-3xl opacity-50 -z-10"
+            className="absolute bottom-0 left-0 w-150 h-150 bg-linear-to-tr from-blue-50/30 to-transparent rounded-full blur-3xl opacity-50 -z-10"
             style={{ transform: "translate(-30%, 20%)" }}
           ></div>
 
@@ -314,7 +306,7 @@ export default function HomePage() {
         <section className="bg-white py-12 px-4 border-t border-gray-50">
           <div className="container mx-auto max-w-6xl">
             <h1 className="  mb-6 text-3xl font-bold pb-8 border-b border-gray-50 text-center">
-              <span className="bg-gradient-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
+              <span className="bg-linear-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
                 Available Cars
               </span>
             </h1>
@@ -346,6 +338,15 @@ export default function HomePage() {
                           car.unavailablePeriod,
                         );
 
+                        if (car.status === "maintenance") {
+                          return (
+                            <CarStatusBadge
+                              status="maintenance"
+                              className="absolute top-4 left-4"
+                            />
+                          );
+                        }
+
                         if (unavailableBadge) {
                           return (
                             <Badge className="absolute top-4 left-4 bg-amber-600 text-white">
@@ -354,15 +355,13 @@ export default function HomePage() {
                           );
                         }
 
-                        if (car.available) {
-                          return (
-                            <Badge className="absolute top-4 left-4 bg-blue-600 text-white">
-                              Available Now
-                            </Badge>
-                          );
-                        }
+                        return (
+                          <CarStatusBadge
+                            status={car.status}
+                            className="absolute top-4 left-4"
+                          />
+                        );
 
-                        return null;
                       })()}
                       <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
                         ${car.pricePerDay}/day
@@ -393,6 +392,18 @@ export default function HomePage() {
                           <span>{car.location}</span>
                         </div>
                       </div>
+
+                      {car.unavailablePeriod ? (
+                        <p className="mt-4 text-xs text-amber-700">
+                          Unavailable: {getUnavailableRangeLabel(car.unavailablePeriod)}
+                        </p>
+                      ) : car.status !== "available" ? (
+                        <p className="mt-4 text-xs text-gray-500">
+                          {car.status === "rented"
+                            ? "Currently rented"
+                            : "Under maintenance"}
+                        </p>
+                      ) : null}
                     </div>
                   </Card>
                 ))
@@ -406,7 +417,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">
-                <span className="bg-gradient-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
+                <span className="bg-linear-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
                   Why Choose Us
                 </span>
               </h2>
@@ -452,7 +463,7 @@ export default function HomePage() {
         </section>
 
         {/* CTA Section */}
-        <section className="bg-gradient-to-r from-blue-600 to-blue-300 py-16 max-w-5xl mx-auto rounded-2xl  ">
+        <section className="bg-linear-to-r from-blue-600 to-blue-300 py-16 max-w-5xl mx-auto rounded-2xl  ">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold text-white mb-4">
               Ready to Hit the Road?
@@ -464,7 +475,7 @@ export default function HomePage() {
               size="lg"
               variant="secondary"
               onClick={() => router.push("/cars")}
-              className="px-4 py-2 bg-gradient-to-r from-white to-blue-200 cursor-pointer hover:from-white/90 hover:to-blue-300  transition-all duration-300"
+              className="px-4 py-2 bg-linear-to-r from-white to-blue-200 cursor-pointer hover:from-white/90 hover:to-blue-300  transition-all duration-300"
             >
               <span className="  ">View All Cars</span>
             </Button>

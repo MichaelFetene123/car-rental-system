@@ -1,13 +1,29 @@
 import { authFetch } from "@/app/lib/auth";
+import type { BookingStatus, CarStatus, PaymentStatus } from "@/app/lib/status";
+
+export type PaymentMethod = "credit_card" | "mobile_money" | "cash" | "chapa";
+export type RefundMode = "auto" | "manual_review";
+
+export type AdminPayment = {
+  id: string;
+  status: PaymentStatus;
+  amount: number | string;
+  refundedAmount?: number | string | null;
+  paidAt?: string | null;
+  method?: PaymentMethod | null;
+};
 
 export type AdminBooking = {
   id: string;
   bookingCode: string;
-  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
-  totalAmount: number;
+  status: BookingStatus;
+  totalAmount: number | string;
   pickupAt: string;
   returnAt: string;
   bookedAt: string;
+  extraCharges?: number | string | null;
+  lateFee?: number | string | null;
+  damageNotes?: string | null;
   user: {
     id: string;
     full_name: string;
@@ -18,6 +34,7 @@ export type AdminBooking = {
     id: string;
     name: string;
     imageUrl: string | null;
+    status: CarStatus;
   };
   pickupLocation: {
     name: string;
@@ -25,14 +42,45 @@ export type AdminBooking = {
   returnLocation: {
     name: string;
   } | null;
+  payments?: AdminPayment[];
 };
 
-export type UpdateBookingStatusPayload = {
-  bookingId: string;
-  status: "approved" | "rejected" | "cancelled" | "completed";
+export type BookingConflict = {
+  id: string;
+  bookingCode: string;
+  pickupAt: string;
+  returnAt: string;
+  status: BookingStatus;
+  conflictType: "overlap" | "buffer_violation";
+};
+
+export type AdminPaymentSummary = {
+  hasCompletedPayment: boolean;
+  totalCompleted: number;
+  totalRefunded: number;
+  pendingPayments: number;
+  netPaid: number;
+};
+
+export type AdminReviewQueueItem = {
+  booking: AdminBooking;
+  paymentSummary: AdminPaymentSummary;
+  hasCompletedPayment: boolean;
+  conflicts: BookingConflict[];
+  hasConflicts: boolean;
 };
 
 export const BOOKINGS_QUERY_KEY = ["bookings", "all"] as const;
+
+const parseError = async (response: Response) => {
+  const errorText = await response.text();
+  return `(${response.status}). ${errorText || response.statusText}`;
+};
+
+const parseJson = async <T>(response: Response): Promise<T> => {
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : ({} as T);
+};
 
 export const fetchAllBookings = async (
   signal?: AbortSignal,
@@ -43,19 +91,34 @@ export const fetchAllBookings = async (
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
+    throw new Error(`Unable to load bookings ${await parseError(response)}`);
+  }
+
+  return parseJson<AdminBooking[]>(response);
+};
+
+export const fetchAdminReviewQueue = async (
+  paidOnly?: boolean,
+): Promise<AdminReviewQueueItem[]> => {
+  const query = typeof paidOnly === "boolean" ? `?paidOnly=${paidOnly}` : "";
+  const response = await authFetch(`/bookings/admin/review-queue${query}`, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
     throw new Error(
-      `Unable to load bookings (${response.status}). ${errorText}`,
+      `Unable to load review queue ${await parseError(response)}`,
     );
   }
 
-  return (await response.json()) as AdminBooking[];
+  return parseJson<AdminReviewQueueItem[]>(response);
 };
 
-export const updateBookingStatus = async (
-  payload: UpdateBookingStatusPayload,
-): Promise<AdminBooking> => {
-  const response = await authFetch("/bookings/status", {
+const requestAdminAction = async <T>(
+  endpoint: string,
+  payload: Record<string, unknown>,
+): Promise<T> => {
+  const response = await authFetch(endpoint, {
     method: "PATCH",
     body: JSON.stringify(payload),
     headers: {
@@ -64,11 +127,43 @@ export const updateBookingStatus = async (
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
     throw new Error(
-      `Unable to update booking status (${response.status}). ${errorText}`,
+      `Unable to update booking ${await parseError(response)}`,
     );
   }
 
-  return (await response.json()) as AdminBooking;
+  return parseJson<T>(response);
 };
+
+export const approveBooking = async (payload: {
+  bookingId: string;
+  reviewNote?: string;
+}) => requestAdminAction<AdminBooking>("/bookings/admin/approve", payload);
+
+export const rejectBooking = async (payload: {
+  bookingId: string;
+  reason?: string;
+  refundMode?: RefundMode;
+}) => requestAdminAction<AdminBooking>("/bookings/admin/reject", payload);
+
+export const pickupBooking = async (payload: { bookingId: string }) =>
+  requestAdminAction<AdminBooking>("/bookings/admin/pickup", payload);
+
+export const completeBooking = async (payload: {
+  bookingId: string;
+  actualReturnedAt?: string;
+}) => requestAdminAction<AdminBooking>("/bookings/admin/complete", payload);
+
+export const noShowBooking = async (payload: {
+  bookingId: string;
+  reason?: string;
+}) => requestAdminAction<AdminBooking>("/bookings/admin/no-show", payload);
+
+export const inspectBooking = async (payload: {
+  bookingId: string;
+  extraCharges?: number;
+  lateFee?: number;
+  damageNotes?: string;
+  createAdditionalPayment?: boolean;
+  additionalPaymentMethod?: PaymentMethod;
+}) => requestAdminAction<AdminBooking>("/bookings/admin/inspection", payload);

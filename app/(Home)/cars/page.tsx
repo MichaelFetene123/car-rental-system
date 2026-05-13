@@ -2,7 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, Users, Fuel, Settings, MapPin, BadgeAlert } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Users,
+  Fuel,
+  Settings,
+  MapPin,
+  BadgeAlert,
+} from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Badge } from "@/app/ui/badge";
@@ -226,7 +234,8 @@ export default function CarsPage() {
 
                     {car.unavailablePeriod ? (
                       <p className="mt-4 text-xs text-amber-700">
-                        Unavailable: {getUnavailableRangeLabel(car.unavailablePeriod)}
+                        Unavailable:{" "}
+                        {getUnavailableRangeLabel(car.unavailablePeriod)}
                       </p>
                     ) : car.status !== "available" ? (
                       <p className="mt-4 text-xs text-gray-500">

@@ -809,7 +809,7 @@ export default function MyBookingsPage() {
                   <h4 className="font-semibold mb-2">
                     {deletingBooking.carName}
                   </h4>
-                  <div className="space-y-1 text-sm text-gray-600">
+                  <div className="space-y-1 text-sm text-gray-600">ing
                     <p>Booking ID: #{deletingBooking.id}</p>
                     <p>Rental Period: {deletingBooking.rentalPeriod}</p>
                     <p>Total Price: ${deletingBooking.totalPrice}</p>

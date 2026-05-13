@@ -15,10 +15,12 @@ import {
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Card } from "@/app/ui/card";
+import { Badge } from "@/app/ui/badge";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { CarDetailSkeleton } from "@/app/ui/skeletons";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
 import {
+  getUnavailableBadgeLabel,
   getUnavailableDetailLabel,
   getUnavailableRangeLabel,
   isDateRangeUnavailable,
@@ -219,6 +221,7 @@ export default function CarDetailPage() {
 
   const unavailableDetail = getUnavailableDetailLabel(car.unavailablePeriod);
   const unavailableRange = getUnavailableRangeLabel(car.unavailablePeriod);
+  const unavailableBadge = getUnavailableBadgeLabel(car.unavailablePeriod);
   const pickupDateValue = pickupDate
     ? new Date(`${pickupDate}T09:00:00.000Z`)
     : null;
@@ -233,7 +236,8 @@ export default function CarDetailPage() {
           returnDateValue,
         )
       : false;
-  const isCarUnavailable = car.status !== "available";
+  const hasActiveUnavailable = Boolean(unavailableBadge);
+  const isCarUnavailable = car.status !== "available" || hasActiveUnavailable;
 
   const handleBookNow = async () => {
     if (bookingMutation.isPending) return;
@@ -322,6 +326,11 @@ export default function CarDetailPage() {
                 </p>
                 <div className="mt-3">
                   <CarStatusBadge status={car.status} />
+                  {unavailableBadge ? (
+                    <Badge className="mt-2 bg-amber-100 text-amber-800">
+                      {unavailableBadge}
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
 
@@ -440,7 +449,11 @@ export default function CarDetailPage() {
                 onClick={handleBookNow}
                 className="w-full mb-4 bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300"
                 size="lg"
-                disabled={bookingMutation.isPending || isCarUnavailable || hasDateOverlap}
+                disabled={
+                  bookingMutation.isPending ||
+                  isCarUnavailable ||
+                  hasDateOverlap
+                }
                 aria-busy={bookingMutation.isPending}
               >
                 {bookingMutation.isPending ? (
@@ -459,21 +472,25 @@ export default function CarDetailPage() {
                 </p>
               ) : null}
 
-              {isCarUnavailable ? (
+              {hasActiveUnavailable ? (
                 <p className="mb-3 text-sm text-amber-700">
-                  This car is currently {car.status.replace("_", " ")}. Please choose another vehicle.
+                  {unavailableRange
+                    ? `Unavailable: ${unavailableRange}`
+                    : "This car is temporarily unavailable."}
+                </p>
+              ) : isCarUnavailable ? (
+                <p className="mb-3 text-sm text-amber-700">
+                  This car is currently {car.status.replace("_", " ")}. Please
+                  choose another vehicle.
                 </p>
               ) : null}
 
               {!isCarUnavailable && hasDateOverlap ? (
                 <p className="mb-3 text-sm text-amber-700">
-                  Selected dates overlap an unavailable period. Please choose different dates.
+                  Selected dates overlap an unavailable period. Please choose
+                  different dates.
                 </p>
               ) : null}
-
-              <p className="text-xs text-center text-gray-500">
-                No credit card required to reserve
-              </p>
 
               {/* Additional Info */}
               <div className="mt-6 pt-6 border-t border-gray-300 space-y-3 text-sm">

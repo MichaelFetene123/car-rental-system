@@ -436,11 +436,11 @@ export default function ManageCars() {
         const res = await authFetch(`/admin/cars/${id}`, {
           method: "DELETE",
         });
+// console.log("Response:", res);
 
         if (!res.ok) {
           throw new Error(await parseErrorMessage(res));
         }
-
         setCars((currentCars) => currentCars.filter((car) => car.id !== id));
         void queryClient.invalidateQueries({ queryKey: ["publicCars"] });
         void queryClient.invalidateQueries({ queryKey: ["publicCar"] });

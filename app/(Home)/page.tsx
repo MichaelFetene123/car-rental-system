@@ -1,24 +1,37 @@
 "use client";
-import { Search, Users, Fuel, Settings, MapPin, Calendar } from "lucide-react";
-// import PublicHeader from "@/app/ui/public-header";
-import type { BackendCar, PublicCar } from "@/app/lib/data";
-import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
-                      {(() => {
-                        const unavailableBadge = getUnavailableBadgeLabel(
-                          car.unavailablePeriod,
-                        );
 
-                        return (
-                          <div className="absolute top-4 left-4 flex flex-col gap-2">
-                            <CarStatusBadge status={car.status} />
-                            {unavailableBadge ? (
-                              <Badge className="bg-amber-600 text-white">
-                                {unavailableBadge}
-                              </Badge>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
+import { useMemo, useState } from "react";
+import { Search, Users, Fuel, Settings, MapPin, Calendar } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { API_BASE_URL } from "@/server/server";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import type { BackendCar, PublicCar } from "@/app/lib/data";
+import {
+  getUnavailableBadgeLabel,
+  getUnavailableRangeLabel,
+} from "@/app/lib/availability";
+import { Badge } from "@/app/ui/badge";
+import { Button } from "@/app/ui/button";
+import { Card } from "@/app/ui/card";
+import { Input } from "@/app/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/ui/select";
+import { HomeCarCardsSkeleton } from "@/app/ui/skeletons";
+import { CarStatusBadge } from "@/app/ui/status-badges";
+import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
+// import PublicHeader from "@/app/ui/public-header";
+
+const HOME_RECENT_CARS_LIMIT = 6;
+const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
+
+const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
+  id: car.id,
   name: car.name,
   year: car.year,
   category: car.category?.name ?? "Other",
@@ -329,7 +342,9 @@ export default function HomePage() {
                   >
                     <div className="relative">
                       <ImageWithFallback
-                        src={resolveCarImageUrl(car.imageUrl) || fallbackCarImage}
+                        src={
+                          resolveCarImageUrl(car.imageUrl) || fallbackCarImage
+                        }
                         alt={car.name}
                         className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -361,7 +376,6 @@ export default function HomePage() {
                             className="absolute top-4 left-4"
                           />
                         );
-
                       })()}
                       <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg font-semibold">
                         ${car.pricePerDay}/day
@@ -395,7 +409,8 @@ export default function HomePage() {
 
                       {car.unavailablePeriod ? (
                         <p className="mt-4 text-xs text-amber-700">
-                          Unavailable: {getUnavailableRangeLabel(car.unavailablePeriod)}
+                          Unavailable:{" "}
+                          {getUnavailableRangeLabel(car.unavailablePeriod)}
                         </p>
                       ) : car.status !== "available" ? (
                         <p className="mt-4 text-xs text-gray-500">

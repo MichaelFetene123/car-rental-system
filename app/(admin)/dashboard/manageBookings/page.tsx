@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { toast } from "sonner";
 import { Badge } from "@/app/ui/badge";
@@ -17,12 +17,12 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableScrollArea,
 } from "@/app/ui/table";
 import { Input } from "@/app/ui/input";
 import {
@@ -68,6 +68,11 @@ import {
 import { Label } from "@/app/ui/lable";
 import { Textarea } from "@/app/ui/textarea";
 import { Switch } from "@/app/ui/switch";
+import { TableSkeletonRows } from "@/app/ui/skeletons";
+
+const DEFAULT_VISIBLE_ROWS = 6;
+const TABLE_HEADER_HEIGHT_PX = 52;
+const TABLE_ROW_HEIGHT_PX = 56;
 
 const ManageBookingsPage = () => {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
@@ -98,38 +103,53 @@ const ManageBookingsPage = () => {
     return new Map(reviewQueue.map((item) => [item.booking.id, item]));
   }, [reviewQueue]);
 
-  // Fetch bookings on mount
-  useEffect(() => {
-    const loadBookings = async () => {
-      try {
+  const loadBookings = useCallback(async (showLoading: boolean) => {
+    try {
+      if (showLoading) {
         setIsLoading(true);
-        setError(null);
-        const [data, reviewData] = await Promise.all([
-          fetchAllBookings(),
-          fetchAdminReviewQueue(false),
-        ]);
-        setBookings(data);
-        setReviewQueue(reviewData);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to load bookings";
-        setError(errorMessage);
-        toast.error(errorMessage);
-      } finally {
+      }
+      setError(null);
+      const [data, reviewData] = await Promise.all([
+        fetchAllBookings(),
+        fetchAdminReviewQueue(false),
+      ]);
+      setBookings(data);
+      setReviewQueue(reviewData);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load bookings";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      if (showLoading) {
         setIsLoading(false);
       }
-    };
-
-    loadBookings();
+    }
   }, []);
 
+  // Fetch bookings on mount and refresh every 5 minutes.
+  useEffect(() => {
+    loadBookings(true);
+
+    const intervalId = window.setInterval(
+      () => {
+        loadBookings(false);
+      },
+      5 * 60 * 1000,
+    );
+
+    return () => window.clearInterval(intervalId);
+  }, [loadBookings]);
+
   const filteredBookings = bookings.filter((booking) => {
+    const searchValue = searchQuery.toLowerCase();
+    const userName = booking.user?.full_name?.toLowerCase() ?? "";
+    const carName = booking.car?.name?.toLowerCase() ?? "";
+    const bookingCode = booking.bookingCode?.toLowerCase() ?? "";
     const matchesSearch =
-      booking.user.full_name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      booking.car.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.bookingCode.toLowerCase().includes(searchQuery.toLowerCase());
+      userName.includes(searchValue) ||
+      carName.includes(searchValue) ||
+      bookingCode.includes(searchValue);
 
     const matchesStatus =
       statusFilter === "all" || booking.status === statusFilter;
@@ -442,260 +462,309 @@ const ManageBookingsPage = () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="m-4 bg-white rounded-lg">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-6 animate-spin text-blue-500" />
-              <span className="ml-2 text-muted-foreground">
-                Loading bookings...
-              </span>
-            </div>
-          ) : filteredBookings.length === 0 ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <p className="text-muted-foreground text-lg">
-                  {bookings.length === 0
-                    ? "No bookings found"
-                    : "No bookings match your search"}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-gray-200 ">
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Car</TableHead>
-                  <TableHead>Pickup Date</TableHead>
-                  <TableHead>Return Date</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Flags</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBookings.map((booking) => {
-                  const paymentSummary = getPaymentSummary(booking);
-                  const paymentStatus = getPaymentStatus(booking);
-                  const isPaid = isPaymentReady(booking);
-                  const conflictLabel = formatConflictLabel(booking.id);
-                  const conflicts = getConflictDetails(booking.id);
-                  const isLate = isLateReturn(booking);
-                  const extraCharges = Number(booking.extraCharges ?? 0);
-                  const lateFee = Number(booking.lateFee ?? 0);
-                  const totalExtras = extraCharges + lateFee;
-                  const canApprove =
-                    booking.status === "pending" && isPaid && !conflicts.length;
-                  const canReject = booking.status === "pending";
-                  const canPickup = booking.status === "approved";
-                  const canComplete = booking.status === "active";
-                  const canNoShow = booking.status === "approved";
-                  const canInspect = booking.status === "completed";
-
-                  return (
-                    <TableRow key={booking.id} className="border-gray-200 ">
-                      <TableCell className="font-medium text-sm ">
-                        {booking.bookingCode}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">
-                            {booking.user.full_name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {booking.user.email}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{booking.car.name}</p>
-                          <div className="mt-2">
-                            <CarStatusBadge status={booking.car.status} />
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDate(booking.pickupAt)}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDate(booking.returnAt)}
-                      </TableCell>
-                      <TableCell className="font-semibold">
-                        {formatCurrency(booking.totalAmount)}
-                        {totalExtras > 0 ? (
-                          <p className="text-xs text-amber-700">
-                            Extras: {formatCurrency(totalExtras)}
-                          </p>
-                        ) : null}
-                        {booking.damageNotes ? (
-                          <p className="text-xs text-amber-700">Damage noted</p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-2">
-                          <PaymentStatusBadge status={paymentStatus} />
-                          <p className="text-xs text-muted-foreground">
-                            Net paid: {formatCurrency(paymentSummary.netPaid)}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <BookingStatusBadge status={booking.status} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-2">
-                          {conflictLabel ? (
-                            <Badge
-                              className="bg-rose-100 text-rose-700"
-                              title={conflictLabel}
-                            >
-                              <AlertTriangle className="size-3" />
-                              Conflict
-                            </Badge>
-                          ) : null}
-                          {isLate ? (
-                            <Badge className="bg-orange-100 text-orange-700">
-                              Late
-                            </Badge>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {booking.status === "pending" && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() =>
-                                  openConfirmAction("approve", booking)
-                                }
-                                title={
-                                  canApprove
-                                    ? "Approve"
-                                    : "Payment required or conflicts detected"
-                                }
-                                disabled={
-                                  actionInProgress === booking.id || !canApprove
-                                }
-                                className="cursor-pointer"
-                              >
-                                {actionInProgress === booking.id ? (
-                                  <Loader2 className="size-4 animate-spin" />
-                                ) : (
-                                  <Check className="size-4 text-green-600 cursor-pointer" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setRejectTarget(booking)}
-                                title="Reject"
-                                disabled={
-                                  actionInProgress === booking.id || !canReject
-                                }
-                                className="cursor-pointer"
-                              >
-                                {actionInProgress === booking.id ? (
-                                  <Loader2 className="size-4 animate-spin" />
-                                ) : (
-                                  <X className="size-4 text-red-600 cursor-pointer" />
-                                )}
-                              </Button>
-                            </>
-                          )}
-                          {canPickup && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                openConfirmAction("pickup", booking)
-                              }
-                              title="Activate rental"
-                              disabled={actionInProgress === booking.id}
-                              className="cursor-pointer"
-                            >
-                              {actionInProgress === booking.id ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <Car className="size-4 text-blue-600" />
-                              )}
-                            </Button>
-                          )}
-                          {canComplete && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                openConfirmAction("complete", booking)
-                              }
-                              title="Complete rental"
-                              disabled={actionInProgress === booking.id}
-                              className="cursor-pointer"
-                            >
-                              {actionInProgress === booking.id ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <Flag className="size-4 text-emerald-600" />
-                              )}
-                            </Button>
-                          )}
-                          {canNoShow && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                openConfirmAction("no_show", booking)
-                              }
-                              title="Mark no-show"
-                              disabled={actionInProgress === booking.id}
-                              className="cursor-pointer"
-                            >
-                              {actionInProgress === booking.id ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <Ban className="size-4 text-orange-600" />
-                              )}
-                            </Button>
-                          )}
-                          {canInspect && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setInspectTarget(booking)}
-                              title="Inspect return"
-                              disabled={actionInProgress === booking.id}
-                              className="cursor-pointer"
-                            >
-                              {actionInProgress === booking.id ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <ClipboardCheck className="size-4 text-purple-600" />
-                              )}
-                            </Button>
-                          )}
-                          {!canApprove &&
-                          !canReject &&
-                          !canPickup &&
-                          !canComplete &&
-                          !canNoShow &&
-                          !canInspect ? (
-                            <span className="text-sm text-muted-foreground px-2">
-                              No actions
-                            </span>
-                          ) : null}
-                        </div>
+        <CardContent>
+          <div className="rounded-lg bg-white p-3 sm:p-4 md:p-5">
+            <TableScrollArea
+              className="will-change-scroll [content-visibility:auto] [contain-intrinsic-size:416px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300"
+              style={{
+                maxHeight: `${TABLE_HEADER_HEIGHT_PX + DEFAULT_VISIBLE_ROWS * TABLE_ROW_HEIGHT_PX}px`,
+              }}
+            >
+              <table className="w-full min-w-300 table-fixed border-separate border-spacing-0 text-sm">
+                <colgroup>
+                  <col className="w-35" />
+                  <col className="w-47.5" />
+                  <col className="w-42.5" />
+                  <col className="w-37.5" />
+                  <col className="w-37.5" />
+                  <col className="w-35" />
+                  <col className="w-40" />
+                  <col className="w-32.5" />
+                  <col className="w-30" />
+                  <col className="w-35" />
+                </colgroup>
+                <TableHeader className="bg-white [&_tr]:border-gray-300">
+                  <TableRow className="border-gray-300 bg-white hover:bg-white text-center">
+                    <TableHead className=" text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Booking ID
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Customer
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Car
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Pickup Date
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Return Date
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Amount
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Payment
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Flags
+                    </TableHead>
+                    <TableHead className="text-center sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableSkeletonRows
+                      columns={10}
+                      rows={DEFAULT_VISIBLE_ROWS}
+                    />
+                  ) : filteredBookings.length === 0 ? (
+                    <TableRow className="border-gray-300">
+                      <TableCell
+                        colSpan={10}
+                        className="text-center py-8 text-gray-600"
+                      >
+                        {bookings.length === 0
+                          ? "No bookings found."
+                          : "No bookings match your search."}
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+                  ) : (
+                    filteredBookings.map((booking) => {
+                      const paymentSummary = getPaymentSummary(booking);
+                      const paymentStatus = getPaymentStatus(booking);
+                      const isPaid = isPaymentReady(booking);
+                      const conflictLabel = formatConflictLabel(booking.id);
+                      const conflicts = getConflictDetails(booking.id);
+                      const isLate = isLateReturn(booking);
+                      const extraCharges = Number(booking.extraCharges ?? 0);
+                      const lateFee = Number(booking.lateFee ?? 0);
+                      const totalExtras = extraCharges + lateFee;
+                      const canApprove =
+                        booking.status === "pending" &&
+                        isPaid &&
+                        !conflicts.length;
+                      const canReject = booking.status === "pending";
+                      const canPickup = booking.status === "approved";
+                      const canComplete = booking.status === "active";
+                      const canNoShow = booking.status === "approved";
+                      const canInspect = booking.status === "completed";
+
+                      return (
+                        <TableRow key={booking.id} className="border-gray-300">
+                          <TableCell className="max-w-35 wrap-break-word whitespace-normal text-center font-medium text-sm">
+                            {booking.bookingCode}
+                          </TableCell>
+                          <TableCell className="max-w-47.5 overflow-hidden text-center">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {booking.user?.full_name}
+                              </p>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {booking.user?.email}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-42.5 text-center">
+                            <div className="text-center">
+                              <p className="font-medium text-center truncate">
+                                {booking.car?.name}
+                              </p>
+                              <div className="mt-2 ">
+                                <CarStatusBadge status={booking.car?.status} />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {formatDate(booking.pickupAt)}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {formatDate(booking.returnAt)}
+                          </TableCell>
+                          <TableCell className="font-semibold text-center">
+                            {formatCurrency(booking.totalAmount)}
+                            {totalExtras > 0 ? (
+                              <p className="text-xs text-amber-700">
+                                Extras: {formatCurrency(totalExtras)}
+                              </p>
+                            ) : null}
+                            {booking.damageNotes ? (
+                              <p className="text-xs text-amber-700">
+                                Damage noted
+                              </p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="space-y-2">
+                              <PaymentStatusBadge status={paymentStatus} />
+                              <p className="text-xs text-muted-foreground">
+                                Net paid:{" "}
+                                {formatCurrency(paymentSummary.netPaid)}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <BookingStatusBadge status={booking.status} />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex flex-col items-center gap-2">
+                              {conflictLabel ? (
+                                <Badge
+                                  className="flex items-center gap-1 bg-rose-100 text-rose-700"
+                                  title={conflictLabel}
+                                >
+                                  <AlertTriangle className="size-3" />
+                                  Conflict
+                                </Badge>
+                              ) : null}
+                              {isLate ? (
+                                <Badge className="flex items-center gap-1 bg-orange-100 text-orange-700">
+                                  Late
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center gap-2">
+                              {booking.status === "pending" && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      openConfirmAction("approve", booking)
+                                    }
+                                    title={
+                                      canApprove
+                                        ? "Approve"
+                                        : "Payment required or conflicts detected"
+                                    }
+                                    disabled={
+                                      actionInProgress === booking.id ||
+                                      !canApprove
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    {actionInProgress === booking.id ? (
+                                      <Loader2 className="size-4 animate-spin" />
+                                    ) : (
+                                      <Check className="size-4 text-green-600 cursor-pointer" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setRejectTarget(booking)}
+                                    title="Reject"
+                                    disabled={
+                                      actionInProgress === booking.id ||
+                                      !canReject
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    {actionInProgress === booking.id ? (
+                                      <Loader2 className="size-4 animate-spin" />
+                                    ) : (
+                                      <X className="size-4 text-red-600 cursor-pointer" />
+                                    )}
+                                  </Button>
+                                </>
+                              )}
+                              {canPickup && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    openConfirmAction("pickup", booking)
+                                  }
+                                  title="Activate rental"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Car className="size-4 text-blue-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canComplete && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    openConfirmAction("complete", booking)
+                                  }
+                                  title="Complete rental"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Flag className="size-4 text-emerald-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canNoShow && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    openConfirmAction("no_show", booking)
+                                  }
+                                  title="Mark no-show"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Ban className="size-4 text-orange-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canInspect && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setInspectTarget(booking)}
+                                  title="Inspect return"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <ClipboardCheck className="size-4 text-purple-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {!canApprove &&
+                              !canReject &&
+                              !canPickup &&
+                              !canComplete &&
+                              !canNoShow &&
+                              !canInspect ? (
+                                <span className="text-sm text-muted-foreground px-2">
+                                  No actions
+                                </span>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </table>
+            </TableScrollArea>
+          </div>
         </CardContent>
       </Card>
 
@@ -708,7 +777,7 @@ const ManageBookingsPage = () => {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>
               {confirmAction?.type === "approve"
@@ -725,7 +794,7 @@ const ManageBookingsPage = () => {
             </DialogDescription>
           </DialogHeader>
           {confirmAction?.type === "no_show" ? (
-            <div className="space-y-2">
+            <div className="space-y-2 bg-white">
               <Label htmlFor="noShowReason">Reason (optional)</Label>
               <Input
                 id="noShowReason"
@@ -742,6 +811,7 @@ const ManageBookingsPage = () => {
             <Button
               onClick={handleConfirmAction}
               disabled={Boolean(actionInProgress)}
+              className="bg-blue-600 text-white hover:bg-blue-700"
             >
               Confirm
             </Button>
@@ -759,7 +829,7 @@ const ManageBookingsPage = () => {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>Reject booking</DialogTitle>
             <DialogDescription>
@@ -800,6 +870,7 @@ const ManageBookingsPage = () => {
               variant="destructive"
               onClick={handleReject}
               disabled={Boolean(actionInProgress)}
+              className="bg-red-600 text-white hover:bg-red-700"
             >
               Reject booking
             </Button>
@@ -822,7 +893,7 @@ const ManageBookingsPage = () => {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>Inspect returned vehicle</DialogTitle>
             <DialogDescription>
@@ -909,7 +980,7 @@ const ManageBookingsPage = () => {
                   <SelectTrigger>
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="credit_card">Credit card</SelectItem>
                     <SelectItem value="mobile_money">Mobile money</SelectItem>
@@ -926,6 +997,7 @@ const ManageBookingsPage = () => {
             <Button
               onClick={handleInspect}
               disabled={Boolean(actionInProgress)}
+              className="bg-blue-600 text-white hover:bg-blue-700"
             >
               Save inspection
             </Button>

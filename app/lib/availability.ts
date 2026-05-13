@@ -30,6 +30,13 @@ export const getUnavailableBadgeLabel = (period?: UnavailablePeriod | null) => {
   return `Unavailable for ${remainingDays} ${remainingDays === 1 ? "day" : "days"}`;
 };
 
+export const getBookedUntilLabel = (period?: UnavailablePeriod | null) => {
+  if (!period) return null;
+
+  const end = new Date(period.endDate);
+  return `Booked until ${formatShortDate(end)}`;
+};
+
 export const getUnavailableDetailLabel = (
   period?: UnavailablePeriod | null,
 ) => {

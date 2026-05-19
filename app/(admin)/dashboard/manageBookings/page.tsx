@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { toast } from "sonner";
 import { Badge } from "@/app/ui/badge";
@@ -15,6 +15,7 @@ import {
   Flag,
   ClipboardCheck,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import {
   TableBody,
@@ -38,13 +39,17 @@ import {
   fetchAdminReviewQueue,
   approveBooking,
   rejectBooking,
+  cancelUnpaidPendingBooking,
   pickupBooking,
   completeBooking,
   noShowBooking,
   inspectBooking,
+  deleteCancelledBooking,
+  deleteCompletedBooking,
+  deleteExpiredBooking,
+  deleteRefundedBooking,
   AdminBooking,
   AdminReviewQueueItem,
-  RefundMode,
   PaymentMethod,
 } from "@/app/lib/bookings";
 import {
@@ -73,6 +78,21 @@ import { TableSkeletonRows } from "@/app/ui/skeletons";
 const DEFAULT_VISIBLE_ROWS = 6;
 const TABLE_HEADER_HEIGHT_PX = 52;
 const TABLE_ROW_HEIGHT_PX = 56;
+const ADMIN_BOOKINGS_REFRESH_INTERVAL_MS = 15 * 1000;
+
+const buildBookingSnapshot = (rows: AdminBooking[]) =>
+  rows
+    .map((booking) =>
+      [
+        booking.id,
+        booking.status,
+        booking.pickupAt,
+        booking.returnAt,
+        booking.totalAmount,
+        booking.bookedAt,
+      ].join(":"),
+    )
+    .join("|");
 
 const ManageBookingsPage = () => {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
@@ -89,56 +109,90 @@ const ManageBookingsPage = () => {
   const [confirmReason, setConfirmReason] = useState("");
   const [rejectTarget, setRejectTarget] = useState<AdminBooking | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [refundMode, setRefundMode] = useState<RefundMode>("auto");
+  const [cancelUnpaidTarget, setCancelUnpaidTarget] =
+    useState<AdminBooking | null>(null);
+  const [cancelUnpaidReason, setCancelUnpaidReason] = useState("");
   const [inspectTarget, setInspectTarget] = useState<AdminBooking | null>(null);
+  const [deleteCancelledTarget, setDeleteCancelledTarget] =
+    useState<AdminBooking | null>(null);
+  const [deleteExpiredTarget, setDeleteExpiredTarget] =
+    useState<AdminBooking | null>(null);
+  const [deleteRefundedTarget, setDeleteRefundedTarget] =
+    useState<AdminBooking | null>(null);
+  const [deleteCompletedTarget, setDeleteCompletedTarget] =
+    useState<AdminBooking | null>(null);
   const [inspectForm, setInspectForm] = useState({
     extraCharges: "",
     lateFee: "",
+    inspectionFee: "",
     damageNotes: "",
     createAdditionalPayment: true,
     additionalPaymentMethod: "cash" as PaymentMethod,
   });
+  const latestBookingsSnapshotRef = useRef<string | null>(null);
 
   const reviewQueueMap = useMemo<Map<string, AdminReviewQueueItem>>(() => {
     return new Map(reviewQueue.map((item) => [item.booking.id, item]));
   }, [reviewQueue]);
 
-  const loadBookings = useCallback(async (showLoading: boolean) => {
-    try {
-      if (showLoading) {
-        setIsLoading(true);
-      }
-      setError(null);
-      const [data, reviewData] = await Promise.all([
-        fetchAllBookings(),
-        fetchAdminReviewQueue(false),
-      ]);
-      setBookings(data);
-      setReviewQueue(reviewData);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load bookings";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      if (showLoading) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
+  const loadBookings = useCallback(
+    async (showLoading: boolean, reloadOnChange = false) => {
+      try {
+        if (showLoading) {
+          setIsLoading(true);
+        }
+        setError(null);
+        const [data, reviewData] = await Promise.all([
+          fetchAllBookings(),
+          fetchAdminReviewQueue(false),
+        ]);
+        const nextSnapshot = buildBookingSnapshot(data);
+        const hasPreviousSnapshot = latestBookingsSnapshotRef.current !== null;
+        const hasChanged =
+          hasPreviousSnapshot &&
+          latestBookingsSnapshotRef.current !== nextSnapshot;
 
-  // Fetch bookings on mount and refresh every 5 minutes.
+        latestBookingsSnapshotRef.current = nextSnapshot;
+        setBookings(data);
+        setReviewQueue(reviewData);
+
+        if (reloadOnChange && hasChanged) {
+          window.location.reload();
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load bookings";
+        setError(errorMessage);
+        if (showLoading) {
+          toast.error(errorMessage);
+        }
+      } finally {
+        if (showLoading) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [],
+  );
+
+  // Fetch bookings on mount, then auto-refresh for user booking updates.
   useEffect(() => {
-    loadBookings(true);
+    void loadBookings(true);
 
-    const intervalId = window.setInterval(
-      () => {
-        loadBookings(false);
-      },
-      5 * 60 * 1000,
-    );
+    const intervalId = window.setInterval(() => {
+      void loadBookings(false, true);
+    }, ADMIN_BOOKINGS_REFRESH_INTERVAL_MS);
 
-    return () => window.clearInterval(intervalId);
+    const handleFocus = () => {
+      void loadBookings(false, true);
+    };
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [loadBookings]);
 
   const filteredBookings = bookings.filter((booking) => {
@@ -228,7 +282,6 @@ const ManageBookingsPage = () => {
       const updated = await rejectBooking({
         bookingId: rejectTarget.id,
         reason: rejectReason || undefined,
-        refundMode,
       });
 
       applyBookingUpdate(updated);
@@ -243,13 +296,37 @@ const ManageBookingsPage = () => {
     }
   };
 
+  const handleCancelUnpaid = async () => {
+    if (!cancelUnpaidTarget) return;
+
+    setActionInProgress(cancelUnpaidTarget.id);
+    try {
+      const updated = await cancelUnpaidPendingBooking({
+        bookingId: cancelUnpaidTarget.id,
+        reason: cancelUnpaidReason || undefined,
+      });
+
+      applyBookingUpdate(updated);
+      toast.success("Booking cancelled");
+      setCancelUnpaidTarget(null);
+      setCancelUnpaidReason("");
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to cancel booking";
+      toast.error(errorMessage);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   const handleInspect = async () => {
     if (!inspectTarget) return;
 
     const extraCharges = Number(inspectForm.extraCharges || 0);
     const lateFee = Number(inspectForm.lateFee || 0);
+    const inspectionFee = Number(inspectForm.inspectionFee || 0);
 
-    if (extraCharges < 0 || lateFee < 0) {
+    if (extraCharges < 0 || lateFee < 0 || inspectionFee < 0) {
       toast.error("Charges must be zero or higher.");
       return;
     }
@@ -260,6 +337,7 @@ const ManageBookingsPage = () => {
         bookingId: inspectTarget.id,
         extraCharges: extraCharges || undefined,
         lateFee: lateFee || undefined,
+        inspectionFee: inspectionFee || undefined,
         damageNotes: inspectForm.damageNotes || undefined,
         createAdditionalPayment: inspectForm.createAdditionalPayment,
         additionalPaymentMethod: inspectForm.additionalPaymentMethod,
@@ -271,6 +349,108 @@ const ManageBookingsPage = () => {
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to record inspection";
+      toast.error(errorMessage);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDeleteExpired = async () => {
+    if (!deleteExpiredTarget) return;
+
+    const target = deleteExpiredTarget;
+    setActionInProgress(target.id);
+    try {
+      await deleteExpiredBooking(target.id);
+      setBookings((current) =>
+        current.filter((booking) => booking.id !== target.id),
+      );
+      setReviewQueue((current) =>
+        current.filter((item) => item.booking.id !== target.id),
+      );
+      toast.success("Expired booking deleted");
+      setDeleteExpiredTarget(null);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete expired booking";
+      toast.error(errorMessage);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDeleteCancelled = async () => {
+    if (!deleteCancelledTarget) return;
+
+    const target = deleteCancelledTarget;
+    setActionInProgress(target.id);
+    try {
+      await deleteCancelledBooking(target.id);
+      setBookings((current) =>
+        current.filter((booking) => booking.id !== target.id),
+      );
+      setReviewQueue((current) =>
+        current.filter((item) => item.booking.id !== target.id),
+      );
+      toast.success("Cancelled booking deleted");
+      setDeleteCancelledTarget(null);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to delete cancelled booking";
+      toast.error(errorMessage);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDeleteCompleted = async () => {
+    if (!deleteCompletedTarget) return;
+
+    const target = deleteCompletedTarget;
+    setActionInProgress(target.id);
+    try {
+      await deleteCompletedBooking(target.id);
+      setBookings((current) =>
+        current.filter((booking) => booking.id !== target.id),
+      );
+      setReviewQueue((current) =>
+        current.filter((item) => item.booking.id !== target.id),
+      );
+      toast.success("Completed booking deleted");
+      setDeleteCompletedTarget(null);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to delete completed booking";
+      toast.error(errorMessage);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDeleteRefunded = async () => {
+    if (!deleteRefundedTarget) return;
+
+    const target = deleteRefundedTarget;
+    setActionInProgress(target.id);
+    try {
+      await deleteRefundedBooking(target.id);
+      setBookings((current) =>
+        current.filter((booking) => booking.id !== target.id),
+      );
+      setReviewQueue((current) =>
+        current.filter((item) => item.booking.id !== target.id),
+      );
+      toast.success("Refunded booking deleted");
+      setDeleteRefundedTarget(null);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to delete refunded booking";
       toast.error(errorMessage);
     } finally {
       setActionInProgress(null);
@@ -457,6 +637,7 @@ const ManageBookingsPage = () => {
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="no_show">No Show</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -525,35 +706,64 @@ const ManageBookingsPage = () => {
                     />
                   ) : filteredBookings.length === 0 ? (
                     <TableRow className="border-gray-300">
-                      <TableCell
-                        colSpan={10}
-                        className="text-center py-8 text-gray-600"
-                      >
-                        {bookings.length === 0
-                          ? "No bookings found."
-                          : "No bookings match your search."}
+                      <TableCell colSpan={10} className="py-10">
+                        <div className="flex flex-col items-center justify-center gap-1 text-center text-gray-600">
+                          <span className="text-base font-medium">
+                            {bookings.length === 0
+                              ? "No bookings found"
+                              : "No bookings match your search"}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Try adjusting filters or search terms.
+                          </span>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredBookings.map((booking) => {
                       const paymentSummary = getPaymentSummary(booking);
                       const paymentStatus = getPaymentStatus(booking);
+                      const displayPaymentStatus =
+                        ["active", "completed"].includes(booking.status) &&
+                        ![
+                          "refunded",
+                          "partially_refunded",
+                          "refund_initiated",
+                          "refund_processing",
+                          "refund_reversed",
+                        ].includes(paymentStatus)
+                          ? "completed"
+                          : paymentStatus;
                       const isPaid = isPaymentReady(booking);
                       const conflictLabel = formatConflictLabel(booking.id);
                       const conflicts = getConflictDetails(booking.id);
                       const isLate = isLateReturn(booking);
                       const extraCharges = Number(booking.extraCharges ?? 0);
                       const lateFee = Number(booking.lateFee ?? 0);
-                      const totalExtras = extraCharges + lateFee;
+                      const inspectionFee = Number(booking.inspectionFee ?? 0);
+                      const totalExtras =
+                        extraCharges + lateFee + inspectionFee;
+                      const isPending = booking.status === "pending";
+                      const isPaymentCompleted =
+                        displayPaymentStatus === "completed";
                       const canApprove =
-                        booking.status === "pending" &&
-                        isPaid &&
-                        !conflicts.length;
-                      const canReject = booking.status === "pending";
+                        isPending && isPaid && !conflicts.length;
+                      const canReject =
+                        (isPending || booking.status === "approved") &&
+                        isPaymentCompleted;
+                      const canCancelUnpaid =
+                        isPending &&
+                        !isPaymentCompleted &&
+                        paymentSummary.totalCompleted <= 0 &&
+                        paymentSummary.netPaid <= 0;
                       const canPickup = booking.status === "approved";
                       const canComplete = booking.status === "active";
-                      const canNoShow = booking.status === "approved";
+                      const canNoShow = false;
                       const canInspect = booking.status === "completed";
+                      const canDeleteCancelled = booking.status === "cancelled";
+                      const canDeleteCompleted = booking.status === "completed";
+                      const canDeleteExpired = booking.status === "expired";
+                      const canDeleteRefunded = paymentStatus === "refunded";
 
                       return (
                         <TableRow key={booking.id} className="border-gray-300">
@@ -601,7 +811,9 @@ const ManageBookingsPage = () => {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="space-y-2">
-                              <PaymentStatusBadge status={paymentStatus} />
+                              <PaymentStatusBadge
+                                status={displayPaymentStatus}
+                              />
                               <p className="text-xs text-muted-foreground">
                                 Net paid:{" "}
                                 {formatCurrency(paymentSummary.netPaid)}
@@ -631,49 +843,39 @@ const ManageBookingsPage = () => {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex justify-center gap-2">
-                              {booking.status === "pending" && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                      openConfirmAction("approve", booking)
-                                    }
-                                    title={
-                                      canApprove
-                                        ? "Approve"
-                                        : "Payment required or conflicts detected"
-                                    }
-                                    disabled={
-                                      actionInProgress === booking.id ||
-                                      !canApprove
-                                    }
-                                    className="cursor-pointer"
-                                  >
-                                    {actionInProgress === booking.id ? (
-                                      <Loader2 className="size-4 animate-spin" />
-                                    ) : (
-                                      <Check className="size-4 text-green-600 cursor-pointer" />
-                                    )}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setRejectTarget(booking)}
-                                    title="Reject"
-                                    disabled={
-                                      actionInProgress === booking.id ||
-                                      !canReject
-                                    }
-                                    className="cursor-pointer"
-                                  >
-                                    {actionInProgress === booking.id ? (
-                                      <Loader2 className="size-4 animate-spin" />
-                                    ) : (
-                                      <X className="size-4 text-red-600 cursor-pointer" />
-                                    )}
-                                  </Button>
-                                </>
+                              {canApprove && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    openConfirmAction("approve", booking)
+                                  }
+                                  title="Approve"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Check className="size-4 text-green-600 cursor-pointer" />
+                                  )}
+                                </Button>
+                              )}
+                              {canCancelUnpaid && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setCancelUnpaidTarget(booking)}
+                                  title="Cancel unpaid booking"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Ban className="size-4 text-amber-600" />
+                                  )}
+                                </Button>
                               )}
                               {canPickup && (
                                 <Button
@@ -690,6 +892,22 @@ const ManageBookingsPage = () => {
                                     <Loader2 className="size-4 animate-spin" />
                                   ) : (
                                     <Car className="size-4 text-blue-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canReject && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setRejectTarget(booking)}
+                                  title="Reject"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <X className="size-4 text-red-600 cursor-pointer" />
                                   )}
                                 </Button>
                               )}
@@ -745,12 +963,89 @@ const ManageBookingsPage = () => {
                                   )}
                                 </Button>
                               )}
+                              {canDeleteCompleted && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setDeleteCompletedTarget(booking)
+                                  }
+                                  title="Delete completed booking"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-4 text-red-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canDeleteExpired && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setDeleteExpiredTarget(booking)
+                                  }
+                                  title="Delete expired booking"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-4 text-red-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canDeleteCancelled && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setDeleteCancelledTarget(booking)
+                                  }
+                                  title="Delete cancelled booking"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-4 text-red-600" />
+                                  )}
+                                </Button>
+                              )}
+                              {canDeleteRefunded && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setDeleteRefundedTarget(booking)
+                                  }
+                                  title="Delete refunded booking"
+                                  disabled={actionInProgress === booking.id}
+                                  className="cursor-pointer"
+                                >
+                                  {actionInProgress === booking.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-4 text-red-600" />
+                                  )}
+                                </Button>
+                              )}
                               {!canApprove &&
                               !canReject &&
+                              !canCancelUnpaid &&
                               !canPickup &&
                               !canComplete &&
                               !canNoShow &&
-                              !canInspect ? (
+                              !canInspect &&
+                              !canDeleteCompleted &&
+                              !canDeleteCancelled &&
+                              !canDeleteExpired &&
+                              !canDeleteRefunded ? (
                                 <span className="text-sm text-muted-foreground px-2">
                                   No actions
                                 </span>
@@ -820,12 +1115,58 @@ const ManageBookingsPage = () => {
       </Dialog>
 
       <Dialog
+        open={Boolean(cancelUnpaidTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelUnpaidTarget(null);
+            setCancelUnpaidReason("");
+          }
+        }}
+      >
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Cancel unpaid booking</DialogTitle>
+            <DialogDescription>
+              Manually cancel booking {cancelUnpaidTarget?.bookingCode}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="cancelUnpaidReason">Reason (optional)</Label>
+            <Textarea
+              id="cancelUnpaidReason"
+              value={cancelUnpaidReason}
+              onChange={(event) => setCancelUnpaidReason(event.target.value)}
+              placeholder="Why is this unpaid booking cancelled?"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCancelUnpaidTarget(null);
+                setCancelUnpaidReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelUnpaid}
+              disabled={Boolean(actionInProgress)}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Cancel booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={Boolean(rejectTarget)}
         onOpenChange={(open) => {
           if (!open) {
             setRejectTarget(null);
             setRejectReason("");
-            setRefundMode("auto");
           }
         }}
       >
@@ -846,21 +1187,6 @@ const ManageBookingsPage = () => {
                 placeholder="Why is this booking rejected?"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Refund mode</Label>
-              <Select
-                value={refundMode}
-                onValueChange={(value) => setRefundMode(value as RefundMode)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select refund mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto refund</SelectItem>
-                  <SelectItem value="manual_review">Manual review</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectTarget(null)}>
@@ -877,32 +1203,23 @@ const ManageBookingsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog
         open={Boolean(inspectTarget)}
         onOpenChange={(open) => {
           if (!open) {
             setInspectTarget(null);
-            setInspectForm({
-              extraCharges: "",
-              lateFee: "",
-              damageNotes: "",
-              createAdditionalPayment: true,
-              additionalPaymentMethod: "cash",
-            });
           }
         }}
       >
         <DialogContent className="bg-white">
           <DialogHeader>
-            <DialogTitle>Inspect returned vehicle</DialogTitle>
+            <DialogTitle>Inspect rental return</DialogTitle>
             <DialogDescription>
-              Record inspection results for booking {inspectTarget?.bookingCode}
-              .
+              Capture return details for booking {inspectTarget?.bookingCode}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="extraCharges">Extra charges</Label>
                 <Input
@@ -929,6 +1246,21 @@ const ManageBookingsPage = () => {
                     setInspectForm((current) => ({
                       ...current,
                       lateFee: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inspectionFee">Inspection fee</Label>
+                <Input
+                  id="inspectionFee"
+                  type="number"
+                  min="0"
+                  value={inspectForm.inspectionFee}
+                  onChange={(event) =>
+                    setInspectForm((current) => ({
+                      ...current,
+                      inspectionFee: event.target.value,
                     }))
                   }
                 />
@@ -1000,6 +1332,147 @@ const ManageBookingsPage = () => {
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
               Save inspection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteCancelledTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteCancelledTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Delete cancelled booking</DialogTitle>
+            <DialogDescription>
+              Permanently remove cancelled booking{" "}
+              {deleteCancelledTarget?.bookingCode} from the active admin
+              records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteCancelledTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteCancelled}
+              disabled={Boolean(actionInProgress)}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteExpiredTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteExpiredTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Delete expired booking</DialogTitle>
+            <DialogDescription>
+              Permanently remove booking {deleteExpiredTarget?.bookingCode} from
+              the active admin records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteExpiredTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteExpired}
+              disabled={Boolean(actionInProgress)}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteRefundedTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteRefundedTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Delete refunded booking</DialogTitle>
+            <DialogDescription>
+              Permanently remove booking {deleteRefundedTarget?.bookingCode}{" "}
+              from the active admin records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteRefundedTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteRefunded}
+              disabled={Boolean(actionInProgress)}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteCompletedTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteCompletedTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Delete completed booking</DialogTitle>
+            <DialogDescription>
+              Permanently remove booking {deleteCompletedTarget?.bookingCode}{" "}
+              from the active admin records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteCompletedTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteCompleted}
+              disabled={Boolean(actionInProgress)}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete booking
             </Button>
           </DialogFooter>
         </DialogContent>

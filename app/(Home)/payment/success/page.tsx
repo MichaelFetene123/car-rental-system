@@ -57,9 +57,9 @@ export default function PaymentSuccessPage() {
         <div className="mt-6">
           <Link
             className="block rounded-full bg-blue-500 px-5 py-2.5 text-center text-sm font-semibold text-white shadow-[0_10px_24px_rgba(59,130,246,0.35)] transition hover:bg-blue-600"
-            href="/"
+            href="/my-bookings"
           >
-            Continue shopping
+            View My Bookings
           </Link>
         </div>
       </section>

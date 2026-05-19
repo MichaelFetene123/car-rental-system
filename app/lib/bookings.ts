@@ -23,6 +23,7 @@ export type AdminBooking = {
   bookedAt: string;
   extraCharges?: number | string | null;
   lateFee?: number | string | null;
+  inspectionFee?: number | string | null;
   damageNotes?: string | null;
   user: {
     id: string;
@@ -68,6 +69,17 @@ export type AdminReviewQueueItem = {
   hasCompletedPayment: boolean;
   conflicts: BookingConflict[];
   hasConflicts: boolean;
+};
+
+export type AdminRefundProcessResult = {
+  bookingId: string;
+  paymentId: string | null;
+  requestedAmount: number | null;
+  total: number;
+  queued: number;
+  completed: number;
+  failed: number;
+  skipped: number;
 };
 
 export const BOOKINGS_QUERY_KEY = ["bookings", "all"] as const;
@@ -127,9 +139,7 @@ const requestAdminAction = async <T>(
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Unable to update booking ${await parseError(response)}`,
-    );
+    throw new Error(`Unable to update booking ${await parseError(response)}`);
   }
 
   return parseJson<T>(response);
@@ -163,7 +173,73 @@ export const inspectBooking = async (payload: {
   bookingId: string;
   extraCharges?: number;
   lateFee?: number;
+  inspectionFee?: number;
   damageNotes?: string;
   createAdditionalPayment?: boolean;
   additionalPaymentMethod?: PaymentMethod;
 }) => requestAdminAction<AdminBooking>("/bookings/admin/inspection", payload);
+
+export const cancelUnpaidPendingBooking = async (payload: {
+  bookingId: string;
+  reason?: string;
+}) =>
+  requestAdminAction<AdminBooking>("/bookings/admin/cancel-unpaid", payload);
+
+export const processRefundForBooking = async (payload: {
+  bookingId: string;
+  reason?: string;
+}) =>
+  requestAdminAction<AdminRefundProcessResult>(
+    `/bookings/admin/${payload.bookingId}/refund`,
+    {
+      reason: payload.reason,
+    },
+  );
+
+export const deleteExpiredBooking = async (bookingId: string) => {
+  const response = await authFetch(`/bookings/admin/${bookingId}/expired`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Unable to delete expired booking ${await parseError(response)}`,
+    );
+  }
+};
+
+export const deleteCancelledBooking = async (bookingId: string) => {
+  const response = await authFetch(`/bookings/admin/${bookingId}/cancelled`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Unable to delete cancelled booking ${await parseError(response)}`,
+    );
+  }
+};
+
+export const deleteCompletedBooking = async (bookingId: string) => {
+  const response = await authFetch(`/bookings/admin/${bookingId}/completed`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Unable to delete completed booking ${await parseError(response)}`,
+    );
+  }
+};
+
+export const deleteRefundedBooking = async (bookingId: string) => {
+  const response = await authFetch(`/bookings/admin/${bookingId}/refunded`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Unable to delete refunded booking ${await parseError(response)}`,
+    );
+  }
+};

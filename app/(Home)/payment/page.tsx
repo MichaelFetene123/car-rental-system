@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ShoppingCart } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
@@ -143,6 +144,8 @@ export default function PaymentPage() {
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(
     null,
   );
+  const searchParams = useSearchParams();
+  const bookingIdParam = searchParams.get("bookingId");
   const { data: currentUser } = useCurrentUser();
   const userKey =
     currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
@@ -163,14 +166,15 @@ export default function PaymentPage() {
     refetchIntervalInBackground: true,
   });
 
-  const pendingBookings = useMemo(
-    () => bookings.filter((booking) => booking.status === "pending"),
-    [bookings],
-  );
-
   const unpaidPendingBookings = useMemo(
-    () => pendingBookings.filter((booking) => !booking.isPaid),
-    [pendingBookings],
+    () =>
+      bookings.filter(
+        (booking) =>
+          booking.status === "pending" &&
+          booking.paymentStatus !== "completed" &&
+          !booking.isPaid,
+      ),
+    [bookings],
   );
 
   const bookingStats = useMemo(() => {
@@ -184,11 +188,19 @@ export default function PaymentPage() {
   }, [unpaidPendingBookings]);
 
   const pendingBooking = useMemo(() => {
+    if (bookingIdParam) {
+      return (
+        unpaidPendingBookings.find(
+          (booking) => booking.id === bookingIdParam,
+        ) ?? null
+      );
+    }
+
     const pending = unpaidPendingBookings
       .slice()
       .sort((a, b) => +new Date(b.bookedAt) - +new Date(a.bookedAt));
     return pending[0] ?? null;
-  }, [unpaidPendingBookings]);
+  }, [bookingIdParam, unpaidPendingBookings]);
 
   const handleChapaPayment = async () => {
     setPaymentError(null);
@@ -260,14 +272,9 @@ export default function PaymentPage() {
 
           {isLoadingBookings ? (
             <PaymentBookingsSkeleton count={1} />
-          ) : pendingBookings.length > 0 ? (
+          ) : unpaidPendingBookings.length > 0 ? (
             <div className="space-y-4">
-              {unpaidPendingBookings.length === 0 ? (
-                <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                  All pending bookings are already paid and awaiting approval.
-                </Card>
-              ) : null}
-              {pendingBookings.map((booking) => (
+              {unpaidPendingBookings.map((booking) => (
                 <div
                   key={booking.id}
                   className="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row gap-4"
@@ -302,11 +309,6 @@ export default function PaymentPage() {
                       <BookingStatusBadge status={booking.status} />
                       <PaymentStatusBadge status={booking.paymentStatus} />
                     </div>
-                    {booking.status === "pending" && booking.isPaid ? (
-                      <p className="mt-2 text-[11px] text-amber-700">
-                        Payment completed, awaiting approval.
-                      </p>
-                    ) : null}
                     <p className="text-xs text-gray-500 mt-2">Price</p>
                     <p className="text-lg font-bold text-blue-600">
                       ${booking.totalAmount}
@@ -316,7 +318,7 @@ export default function PaymentPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-600">No pending bookings to pay.</p>
+            <p className="text-sm text-gray-600">No unpaid bookings to pay.</p>
           )}
         </Card>
 
@@ -325,9 +327,9 @@ export default function PaymentPage() {
           <p className="text-3xl font-bold text-blue-600">
             ${bookingStats.totalMoney}
           </p>
-          {pendingBookings.length > 0 && unpaidPendingBookings.length === 0 ? (
+          {unpaidPendingBookings.length === 0 ? (
             <p className="mt-2 text-sm text-amber-700">
-              No outstanding balance. Pending bookings are waiting for approval.
+              No outstanding balance. Only unpaid pending bookings can be paid.
             </p>
           ) : null}
           <div className="mt-4 flex justify-end">

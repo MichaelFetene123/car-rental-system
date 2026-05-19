@@ -58,9 +58,31 @@ export const resolvePaymentStatus = (
 ): PaymentStatus => {
   if (!payments.length) return "pending";
 
+  if (payments.some((payment) => payment.status === "expired")) {
+    return "expired";
+  }
+
   const hasRefund = payments.some((payment) =>
-    ["refunded", "partially_refunded"].includes(payment.status),
+    [
+      "refunded",
+      "partially_refunded",
+      "refund_initiated",
+      "refund_processing",
+      "refund_reversed",
+    ].includes(payment.status),
   );
+
+  if (payments.some((payment) => payment.status === "refund_reversed")) {
+    return "refund_reversed";
+  }
+
+  if (payments.some((payment) => payment.status === "refund_processing")) {
+    return "refund_processing";
+  }
+
+  if (payments.some((payment) => payment.status === "refund_initiated")) {
+    return "refund_initiated";
+  }
 
   if (summary.netPaid <= 0 && hasRefund) {
     return "refunded";

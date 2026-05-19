@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
@@ -33,16 +33,12 @@ import {
 } from "@/app/ui/select";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { MyBookingsSkeleton } from "@/app/ui/skeletons";
-import { API_BASE_URL } from "@/server/server";
 import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
 import { useCurrentUser } from "@/app/lib/auth-queries";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Switch } from "@/app/ui/switch";
-import {
-  BookingStatusBadge,
-  PaymentStatusBadge,
-} from "@/app/ui/status-badges";
+import { BookingStatusBadge, PaymentStatusBadge } from "@/app/ui/status-badges";
 import type { BookingStatus, PaymentStatus } from "@/app/lib/status";
 import {
   ARCHIVED_BOOKING_STATUSES,
@@ -72,7 +68,12 @@ type Booking = {
   pickupLocationId: string;
   returnLocationId: string;
   totalPrice: number;
+  extraCharges: number;
+  lateFee: number;
+  inspectionFee: number;
+  bookedAt: string;
   bookedOn: string;
+  expiresAt: string | null;
   payments: BackendPayment[];
   paymentSummary: PaymentSummary;
   paymentStatus: PaymentStatus;
@@ -93,8 +94,12 @@ type BackendBooking = {
   pickupAt: string;
   returnAt: string;
   bookedAt: string;
+  expiresAt?: string | null;
   totalAmount: number | string;
   status: BookingStatus;
+  extraCharges?: number | string | null;
+  lateFee?: number | string | null;
+  inspectionFee?: number | string | null;
   carNameSnapshot: string | null;
   carTypeSnapshot: string | null;
   carYearSnapshot: number | null;
@@ -114,6 +119,39 @@ type UpdateBookingPayload = {
 
 const fallbackBookingImage =
   "https://images.unsplash.com/photo-1549924231-f129b911e442?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
+const PAYMENT_EXPIRY_WINDOW_MS = 15 * 60 * 1000;
+const NOW_REFRESH_INTERVAL_MS = 30 * 1000;
+
+const toTimestamp = (value: string | null | undefined): number | null => {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+};
+
+const getBookingExpiryTimestamp = (
+  booking: Pick<Booking, "bookedAt" | "expiresAt">,
+): number | null => {
+  const expiresAtTimestamp = toTimestamp(booking.expiresAt);
+  if (expiresAtTimestamp !== null) return expiresAtTimestamp;
+
+  const bookedAtTimestamp = toTimestamp(booking.bookedAt);
+  if (bookedAtTimestamp === null) return null;
+
+  return bookedAtTimestamp + PAYMENT_EXPIRY_WINDOW_MS;
+};
+
+const isBookingPaymentExpired = (booking: Booking, nowMs: number): boolean => {
+  if (booking.status === "expired" || booking.paymentStatus === "expired") {
+    return true;
+  }
+
+  if (booking.status !== "pending" || booking.isPaid) {
+    return false;
+  }
+
+  const expiryTimestamp = getBookingExpiryTimestamp(booking);
+  return expiryTimestamp !== null && nowMs >= expiryTimestamp;
+};
 
 const parseErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -140,6 +178,13 @@ const formatDateForDisplay = (dateStr: string): string => {
   }
 };
 
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(amount);
+
 const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => {
   const payments = booking.payments ?? [];
   const totalAmount = Number(booking.totalAmount);
@@ -149,6 +194,17 @@ const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => {
     totalAmount,
     payments,
   );
+  const displayPaymentStatus =
+    ["active", "completed"].includes(booking.status) &&
+    ![
+      "refunded",
+      "partially_refunded",
+      "refund_initiated",
+      "refund_processing",
+      "refund_reversed",
+    ].includes(paymentStatus)
+      ? "completed"
+      : paymentStatus;
   const isPaid = isPaymentCovered(paymentSummary, totalAmount);
 
   return {
@@ -167,10 +223,15 @@ const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => {
     pickupLocationId: booking.pickupLocation?.id ?? "",
     returnLocationId: booking.returnLocation?.id ?? "",
     totalPrice: totalAmount,
+    extraCharges: Number(booking.extraCharges ?? 0),
+    lateFee: Number(booking.lateFee ?? 0),
+    inspectionFee: Number(booking.inspectionFee ?? 0),
+    bookedAt: booking.bookedAt,
     bookedOn: formatDateForDisplay(booking.bookedAt),
+    expiresAt: booking.expiresAt ?? null,
     payments,
     paymentSummary,
-    paymentStatus,
+    paymentStatus: displayPaymentStatus,
     isPaid,
   };
 };
@@ -264,6 +325,7 @@ const fetchMyBookings = async (): Promise<Booking[]> => {
 export default function MyBookingsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const { data: currentUser } = useCurrentUser();
   const userKey =
     currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
@@ -289,11 +351,26 @@ export default function MyBookingsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(
+      () => setNowMs(Date.now()),
+      NOW_REFRESH_INTERVAL_MS,
+    );
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const visibleBookings = useMemo(() => {
     if (showArchived) return bookings;
 
     return bookings.filter(
-      (booking) => !ARCHIVED_BOOKING_STATUSES.includes(booking.status),
+      (booking) =>
+        booking.status === "rejected" ||
+        booking.status === "completed" ||
+        booking.paymentStatus === "refunded" ||
+        (booking.status === "cancelled" &&
+          booking.paymentStatus === "pending") ||
+        !ARCHIVED_BOOKING_STATUSES.includes(booking.status),
     );
   }, [bookings, showArchived]);
 
@@ -428,6 +505,7 @@ export default function MyBookingsPage() {
       toast.success("Booking deleted successfully.");
       setIsDeleteDialogOpen(false);
       setDeletingBooking(null);
+      window.location.reload();
     },
     onError: (error) => {
       toast.error(
@@ -464,24 +542,37 @@ export default function MyBookingsPage() {
   };
 
   const canModifyBooking = (booking: Booking): boolean => {
-    return booking.status === "pending" && !booking.isPaid;
+    return (
+      booking.status === "pending" &&
+      !booking.isPaid &&
+      !isBookingPaymentExpired(booking, nowMs)
+    );
   };
 
   const canCancelBooking = (booking: Booking): boolean => {
-    return booking.status === "pending";
+    return (
+      booking.status === "pending" &&
+      booking.paymentStatus !== "completed" &&
+      !isBookingPaymentExpired(booking, nowMs)
+    );
   };
 
   const selectedBookingForPayment = useMemo(() => {
     const activeBooking = bookings.find(
-      (booking) => booking.status === "pending" && !booking.isPaid,
+      (booking) =>
+        booking.status === "pending" &&
+        !booking.isPaid &&
+        !isBookingPaymentExpired(booking, nowMs),
     );
 
     return activeBooking ?? null;
-  }, [bookings]);
+  }, [bookings, nowMs]);
 
   const handleProceedToPayment = () => {
     if (!selectedBookingForPayment) {
-      toast.error("No booking available for payment.");
+      toast.error(
+        "No active booking available for payment. Please create a new booking.",
+      );
       return;
     }
 
@@ -523,147 +614,186 @@ export default function MyBookingsPage() {
         {isLoadingBookings ? <MyBookingsSkeleton count={2} /> : null}
 
         <div className="space-y-6">
-          {!isLoadingBookings && visibleBookings.length === 0 ? (
-            <Card className="p-6 text-center text-gray-600">
-              No bookings to show.
-            </Card>
-          ) : null}
-          {visibleBookings.map((booking) => (
-            <Card key={booking.id} className="overflow-hidden">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
-                <div className="md:col-span-1">
-                  <ImageWithFallback
-                    src={booking.carImage || fallbackBookingImage}
-                    alt={booking.carName}
-                    className="w-full h-64 md:h-full object-cover"
-                  />
-                </div>
+          {visibleBookings.map((booking) => {
+            const isPaymentWindowExpired = isBookingPaymentExpired(
+              booking,
+              nowMs,
+            );
+            const totalExtras =
+              booking.extraCharges + booking.lateFee + booking.inspectionFee;
 
-                <div className="md:col-span-2 p-6">
-                  <div className="flex flex-col h-full">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold mb-1">
-                          {booking.carName}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {booking.carYear} • {booking.carType}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500 mb-1">
-                            Booking #{booking.id}
+            return (
+              <Card key={booking.id} className="overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
+                  <div className="md:col-span-1">
+                    <ImageWithFallback
+                      src={booking.carImage || fallbackBookingImage}
+                      alt={booking.carName}
+                      className="w-full h-64 md:h-full object-cover"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 p-6">
+                    <div className="flex flex-col h-full">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold mb-1">
+                            {booking.carName}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {booking.carYear} • {booking.carType}
                           </p>
-                          <div className="flex flex-col items-end gap-2">
-                            <BookingStatusBadge status={booking.status} />
-                            <PaymentStatusBadge status={booking.paymentStatus} />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500 mb-1">
+                              Booking #{booking.id}
+                            </p>
+                            <div className="flex items-end gap-2 justify-end">
+                              <BookingStatusBadge status={booking.status} />
+                              <PaymentStatusBadge
+                                status={booking.paymentStatus}
+                              />
+                            </div>
+                            {isPaymentWindowExpired ? (
+                              <p className="mt-2 text-[11px]  text-yellow-700">
+                                Payment Time Expired
+                              </p>
+                            ) : booking.status === "pending" &&
+                              booking.isPaid ? (
+                              <p className="mt-2 text-[11px] text-yellow-700">
+                                Payment completed, awaiting approval.
+                              </p>
+                            ) : null}
                           </div>
-                          {booking.status === "pending" && booking.isPaid ? (
-                            <p className="mt-2 text-[11px] text-amber-700">
-                              Payment completed, awaiting approval.
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <Calendar className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">
+                                Rental Period
+                              </p>
+                              <p className="text-sm font-medium">
+                                {booking.rentalPeriod}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3">
+                            <MapPin className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">
+                                Pick-up Location
+                              </p>
+                              <p className="text-sm font-medium">
+                                {booking.pickupLocation}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <MapPin className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">
+                                Return Location
+                              </p>
+                              <p className="text-sm font-medium">
+                                {booking.returnLocation}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3">
+                            <BadgeIcon className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">
+                                Booked on
+                              </p>
+                              <p className="text-sm font-medium">
+                                {booking.bookedOn}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isPaymentWindowExpired ? (
+                        <div className="mb-2 rounded-lg  bg-red-50 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-start gap-3">
+                              <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-600" />
+                              <div>
+                                <p className="text-sm font-semibold text-red-700">
+                                  Payment Time Expired
+                                </p>
+                                <p className="text-xs text-red-700">
+                                  Booking Expired - Please Book Again
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                className="bg-red-600 text-white hover:bg-red-700"
+                                onClick={() =>
+                                  router.push(`/cars/${booking.carId}`)
+                                }
+                              >
+                                Book Again
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-auto pt-4 border-t border-gray-300 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">
+                            Total Price
+                          </p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            {formatCurrency(booking.totalPrice)}
+                          </p>
+                          {totalExtras > 0 ? (
+                            <p className="text-xs font-semibold text-amber-700">
+                              Extras: {formatCurrency(totalExtras)}
                             </p>
                           ) : null}
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <Calendar className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">
-                              Rental Period
-                            </p>
-                            <p className="text-sm font-medium">
-                              {booking.rentalPeriod}
-                            </p>
-                          </div>
+                        <div className="flex gap-2">
+                          {canModifyBooking(booking) && (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleEditClick(booking)}
+                              className="gap-2 border-gray-300 hover:bg-gray-200"
+                            >
+                              <Edit className="w-4 h-4" />
+                              Modify
+                            </Button>
+                          )}
+                          {canCancelBooking(booking) && (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleDeleteClick(booking)}
+                              className="gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-100"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </Button>
+                          )}
                         </div>
-
-                        <div className="flex items-start gap-3">
-                          <MapPin className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">
-                              Pick-up Location
-                            </p>
-                            <p className="text-sm font-medium">
-                              {booking.pickupLocation}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <MapPin className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">
-                              Return Location
-                            </p>
-                            <p className="text-sm font-medium">
-                              {booking.returnLocation}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-3">
-                          <BadgeIcon className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">
-                              Booked on
-                            </p>
-                            <p className="text-sm font-medium">
-                              {booking.bookedOn}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <BookingTimeline
-                      status={booking.status}
-                      isPaid={booking.isPaid}
-                    />
-
-                    <div className="mt-auto pt-4 border-t border-gray-300 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">
-                          Total Price
-                        </p>
-                        <p className="text-2xl font-bold text-blue-600">
-                          ${booking.totalPrice}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        {canModifyBooking(booking) && (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleEditClick(booking)}
-                            className="gap-2 border-gray-300 hover:bg-gray-200"
-                          >
-                            <Edit className="w-4 h-4" />
-                            Modify
-                          </Button>
-                        )}
-                        {canCancelBooking(booking) && (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleDeleteClick(booking)}
-                            className="gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-100"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
 
         {!isLoadingBookings && bookings.length === 0 && (
@@ -672,7 +802,7 @@ export default function MyBookingsPage() {
               <BadgeIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold mb-2">No bookings yet</h3>
               <p className="text-gray-600 mb-6">
-                You haven't made any bookings. Start exploring our amazing
+                You haven&apos;t made any bookings. Start exploring our amazing
                 collection of cars!
               </p>
             </div>
@@ -809,7 +939,8 @@ export default function MyBookingsPage() {
                   <h4 className="font-semibold mb-2">
                     {deletingBooking.carName}
                   </h4>
-                  <div className="space-y-1 text-sm text-gray-600">ing
+                  <div className="space-y-1 text-sm text-gray-600">
+                    ing
                     <p>Booking ID: #{deletingBooking.id}</p>
                     <p>Rental Period: {deletingBooking.rentalPeriod}</p>
                     <p>Total Price: ${deletingBooking.totalPrice}</p>

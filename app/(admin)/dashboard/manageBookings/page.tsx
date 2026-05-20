@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { toast } from "sonner";
 import { Badge } from "@/app/ui/badge";
@@ -74,25 +74,12 @@ import { Label } from "@/app/ui/lable";
 import { Textarea } from "@/app/ui/textarea";
 import { Switch } from "@/app/ui/switch";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
+import { broadcastBookingSync } from "@/app/lib/booking-sync";
 
 const DEFAULT_VISIBLE_ROWS = 6;
 const TABLE_HEADER_HEIGHT_PX = 52;
 const TABLE_ROW_HEIGHT_PX = 56;
 const ADMIN_BOOKINGS_REFRESH_INTERVAL_MS = 15 * 1000;
-
-const buildBookingSnapshot = (rows: AdminBooking[]) =>
-  rows
-    .map((booking) =>
-      [
-        booking.id,
-        booking.status,
-        booking.pickupAt,
-        booking.returnAt,
-        booking.totalAmount,
-        booking.bookedAt,
-      ].join(":"),
-    )
-    .join("|");
 
 const ManageBookingsPage = () => {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
@@ -129,14 +116,13 @@ const ManageBookingsPage = () => {
     createAdditionalPayment: true,
     additionalPaymentMethod: "cash" as PaymentMethod,
   });
-  const latestBookingsSnapshotRef = useRef<string | null>(null);
 
   const reviewQueueMap = useMemo<Map<string, AdminReviewQueueItem>>(() => {
     return new Map(reviewQueue.map((item) => [item.booking.id, item]));
   }, [reviewQueue]);
 
   const loadBookings = useCallback(
-    async (showLoading: boolean, reloadOnChange = false) => {
+    async (showLoading: boolean) => {
       try {
         if (showLoading) {
           setIsLoading(true);
@@ -146,19 +132,8 @@ const ManageBookingsPage = () => {
           fetchAllBookings(),
           fetchAdminReviewQueue(false),
         ]);
-        const nextSnapshot = buildBookingSnapshot(data);
-        const hasPreviousSnapshot = latestBookingsSnapshotRef.current !== null;
-        const hasChanged =
-          hasPreviousSnapshot &&
-          latestBookingsSnapshotRef.current !== nextSnapshot;
-
-        latestBookingsSnapshotRef.current = nextSnapshot;
         setBookings(data);
         setReviewQueue(reviewData);
-
-        if (reloadOnChange && hasChanged) {
-          window.location.reload();
-        }
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to load bookings";
@@ -180,11 +155,11 @@ const ManageBookingsPage = () => {
     void loadBookings(true);
 
     const intervalId = window.setInterval(() => {
-      void loadBookings(false, true);
+      void loadBookings(false);
     }, ADMIN_BOOKINGS_REFRESH_INTERVAL_MS);
 
     const handleFocus = () => {
-      void loadBookings(false, true);
+      void loadBookings(false);
     };
 
     window.addEventListener("focus", handleFocus);
@@ -261,6 +236,12 @@ const ManageBookingsPage = () => {
 
       if (updated) {
         applyBookingUpdate(updated);
+        await loadBookings(false);
+        broadcastBookingSync({
+          bookingId: updated.id,
+          action: type,
+          status: updated.status,
+        });
       }
 
       toast.success("Booking updated successfully");
@@ -285,6 +266,12 @@ const ManageBookingsPage = () => {
       });
 
       applyBookingUpdate(updated);
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: updated.id,
+        action: "reject",
+        status: updated.status,
+      });
       toast.success("Booking rejected");
       setRejectTarget(null);
     } catch (err) {
@@ -307,6 +294,12 @@ const ManageBookingsPage = () => {
       });
 
       applyBookingUpdate(updated);
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: updated.id,
+        action: "cancel-unpaid",
+        status: updated.status,
+      });
       toast.success("Booking cancelled");
       setCancelUnpaidTarget(null);
       setCancelUnpaidReason("");
@@ -344,6 +337,12 @@ const ManageBookingsPage = () => {
       });
 
       applyBookingUpdate(updated);
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: updated.id,
+        action: "inspection",
+        status: updated.status,
+      });
       toast.success("Inspection recorded");
       setInspectTarget(null);
     } catch (err) {
@@ -368,6 +367,11 @@ const ManageBookingsPage = () => {
       setReviewQueue((current) =>
         current.filter((item) => item.booking.id !== target.id),
       );
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: target.id,
+        action: "delete-expired",
+      });
       toast.success("Expired booking deleted");
       setDeleteExpiredTarget(null);
     } catch (err) {
@@ -392,6 +396,11 @@ const ManageBookingsPage = () => {
       setReviewQueue((current) =>
         current.filter((item) => item.booking.id !== target.id),
       );
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: target.id,
+        action: "delete-cancelled",
+      });
       toast.success("Cancelled booking deleted");
       setDeleteCancelledTarget(null);
     } catch (err) {
@@ -418,6 +427,11 @@ const ManageBookingsPage = () => {
       setReviewQueue((current) =>
         current.filter((item) => item.booking.id !== target.id),
       );
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: target.id,
+        action: "delete-completed",
+      });
       toast.success("Completed booking deleted");
       setDeleteCompletedTarget(null);
     } catch (err) {
@@ -444,6 +458,11 @@ const ManageBookingsPage = () => {
       setReviewQueue((current) =>
         current.filter((item) => item.booking.id !== target.id),
       );
+      await loadBookings(false);
+      broadcastBookingSync({
+        bookingId: target.id,
+        action: "delete-refunded",
+      });
       toast.success("Refunded booking deleted");
       setDeleteRefundedTarget(null);
     } catch (err) {
@@ -590,7 +609,7 @@ const ManageBookingsPage = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.location.reload()}
+              onClick={() => void loadBookings(true)}
               className="ml-auto"
             >
               Retry

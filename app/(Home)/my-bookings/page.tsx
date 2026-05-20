@@ -35,6 +35,7 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { MyBookingsSkeleton } from "@/app/ui/skeletons";
 import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
 import { useCurrentUser } from "@/app/lib/auth-queries";
+import { subscribeToBookingSync } from "@/app/lib/booking-sync";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Switch } from "@/app/ui/switch";
@@ -121,6 +122,7 @@ const fallbackBookingImage =
   "https://images.unsplash.com/photo-1549924231-f129b911e442?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
 const PAYMENT_EXPIRY_WINDOW_MS = 15 * 60 * 1000;
 const NOW_REFRESH_INTERVAL_MS = 30 * 1000;
+const MY_BOOKINGS_REFRESH_INTERVAL_MS = 10 * 1000;
 
 const toTimestamp = (value: string | null | undefined): number | null => {
   if (!value) return null;
@@ -329,13 +331,17 @@ export default function MyBookingsPage() {
   const { data: currentUser } = useCurrentUser();
   const userKey =
     currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
+  const myBookingsQueryKey = useMemo(
+    () => ["myBookings", userKey] as const,
+    [userKey],
+  );
 
   const {
     data: bookings = [],
     isPending: isLoadingBookings,
     error: bookingsError,
   } = useQuery<Booking[], Error>({
-    queryKey: ["myBookings", userKey],
+    queryKey: myBookingsQueryKey,
     queryFn: fetchMyBookings,
     enabled: Boolean(userKey),
     staleTime: 0,
@@ -343,6 +349,8 @@ export default function MyBookingsPage() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    refetchInterval: MY_BOOKINGS_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   });
 
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -359,6 +367,17 @@ export default function MyBookingsPage() {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (!userKey) return;
+
+    return subscribeToBookingSync(() => {
+      void queryClient.invalidateQueries({
+        queryKey: ["myBookings"],
+        refetchType: "active",
+      });
+    });
+  }, [queryClient, userKey]);
 
   const visibleBookings = useMemo(() => {
     if (showArchived) return bookings;
@@ -445,7 +464,7 @@ export default function MyBookingsPage() {
       return response.json();
     },
     onSuccess: (_data, payload) => {
-      queryClient.setQueryData<Booking[]>(["myBookings"], (current = []) => {
+      queryClient.setQueryData<Booking[]>(myBookingsQueryKey, (current = []) => {
         const pickupLocationName =
           current.find((b) => b.pickupLocationId === payload.pickupLocationId)
             ?.pickupLocation ??
@@ -475,6 +494,10 @@ export default function MyBookingsPage() {
           };
         });
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["myBookings"],
+        refetchType: "active",
+      });
 
       toast.success("Booking updated successfully.");
       setIsEditDialogOpen(false);
@@ -498,14 +521,17 @@ export default function MyBookingsPage() {
       }
     },
     onSuccess: (_data, bookingId) => {
-      queryClient.setQueryData<Booking[]>(["myBookings"], (current = []) =>
+      queryClient.setQueryData<Booking[]>(myBookingsQueryKey, (current = []) =>
         current.filter((booking) => booking.id !== bookingId),
       );
+      void queryClient.invalidateQueries({
+        queryKey: ["myBookings"],
+        refetchType: "active",
+      });
 
       toast.success("Booking deleted successfully.");
       setIsDeleteDialogOpen(false);
       setDeletingBooking(null);
-      window.location.reload();
     },
     onError: (error) => {
       toast.error(

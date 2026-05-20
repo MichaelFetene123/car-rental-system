@@ -36,16 +36,16 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/server/server";
 import { authFetch, clearStoredAuth } from "@/app/lib/auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
+import {
+  fetchPublicCarCategories,
+  PUBLIC_CAR_CATEGORIES_QUERY_KEY,
+  type CarCategoryOption,
+} from "@/app/lib/car-categories";
 
 import { Car } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
-
-type CarCategory = {
-  id: string;
-  name: string;
-};
 
 type CarLocation = {
   id: string;
@@ -106,6 +106,7 @@ const defaultCarFormData = {
 const DEFAULT_VISIBLE_ROWS = 6;
 const TABLE_HEADER_HEIGHT_PX = 52;
 const TABLE_ROW_HEIGHT_PX = 56;
+const MANAGE_CAR_CATEGORIES_REFRESH_INTERVAL_MS = 15 * 1000;
 
 const parseErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -240,7 +241,6 @@ export default function ManageCars() {
   const [cars, setCars] = useState<ManageCar[]>([]);
   const [isLoadingCars, setIsLoadingCars] = useState(true);
   const [carsLoadError, setCarsLoadError] = useState<string | null>(null);
-  const [categories, setCategories] = useState<CarCategory[]>([]);
   const [locations, setLocations] = useState<CarLocation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -257,6 +257,20 @@ export default function ManageCars() {
     toast.error("Session expired. Please log in again.");
     router.replace("/login");
   }, [router]);
+
+  const {
+    data: categories = [],
+    error: categoriesError,
+  } = useQuery<CarCategoryOption[], Error>({
+    queryKey: PUBLIC_CAR_CATEGORIES_QUERY_KEY,
+    queryFn: ({ signal }) => fetchPublicCarCategories(signal),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: "always",
+    refetchInterval: MANAGE_CAR_CATEGORIES_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
 
   useEffect(() => {
     const loadCars = async () => {
@@ -297,36 +311,15 @@ export default function ManageCars() {
   }, [handleAuthExpired]);
 
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const res = await authFetch(`/car-categories`, {
-          method: "GET",
-          cache: "no-store",
-        });
+    if (!categoriesError) return;
 
-        if (!res.ok) {
-          throw new Error(await parseErrorMessage(res));
-        }
+    if (/log in again|refresh token|session/i.test(categoriesError.message)) {
+      handleAuthExpired();
+      return;
+    }
 
-        const data = (await res.json()) as CarCategory[];
-        setCategories(data);
-      } catch (err) {
-        if (
-          err instanceof Error &&
-          /log in again|refresh token|session/i.test(err.message)
-        ) {
-          handleAuthExpired();
-          return;
-        }
-
-        const message =
-          err instanceof Error ? err.message : "Unable to load categories";
-        toast.error(`Category load failed: ${message}`);
-      }
-    };
-
-    void loadCategories();
-  }, [handleAuthExpired]);
+    toast.error(`Category load failed: ${categoriesError.message}`);
+  }, [categoriesError, handleAuthExpired]);
 
   useEffect(() => {
     const loadLocations = async () => {

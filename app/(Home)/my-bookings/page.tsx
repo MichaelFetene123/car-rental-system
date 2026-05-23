@@ -34,7 +34,7 @@ import {
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { MyBookingsSkeleton } from "@/app/ui/skeletons";
 import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
-import { useCurrentUser } from "@/app/lib/auth-queries";
+import { CURRENT_USER_QUERY_KEY, useCurrentUser } from "@/app/lib/auth-queries";
 import { subscribeToBookingSync } from "@/app/lib/booking-sync";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -376,6 +376,10 @@ export default function MyBookingsPage() {
         queryKey: ["myBookings"],
         refetchType: "active",
       });
+      void queryClient.invalidateQueries({
+        queryKey: CURRENT_USER_QUERY_KEY,
+        refetchType: "active",
+      });
     });
   }, [queryClient, userKey]);
 
@@ -498,6 +502,10 @@ export default function MyBookingsPage() {
         queryKey: ["myBookings"],
         refetchType: "active",
       });
+      void queryClient.invalidateQueries({
+        queryKey: CURRENT_USER_QUERY_KEY,
+        refetchType: "active",
+      });
 
       toast.success("Booking updated successfully.");
       setIsEditDialogOpen(false);
@@ -526,6 +534,10 @@ export default function MyBookingsPage() {
       );
       void queryClient.invalidateQueries({
         queryKey: ["myBookings"],
+        refetchType: "active",
+      });
+      void queryClient.invalidateQueries({
+        queryKey: CURRENT_USER_QUERY_KEY,
         refetchType: "active",
       });
 

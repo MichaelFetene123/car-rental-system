@@ -16,13 +16,14 @@ import {
   DialogTitle,
 } from "@/app/ui/dialog";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableScrollArea,
 } from "@/app/ui/table";
+import { TableSkeletonRows } from "@/app/ui/skeletons";
 import { toast } from "sonner";
 import { CarFront, Edit, Plus, Search, Tags, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,9 @@ import {
 } from "@/app/lib/car-categories";
 
 const ADMIN_CATEGORIES_REFRESH_INTERVAL_MS = 15 * 1000;
+const CATEGORY_TABLE_VISIBLE_ROWS = 5;
+const CATEGORY_TABLE_HEADER_HEIGHT_PX = 52;
+const CATEGORY_TABLE_ROW_HEIGHT_PX = 56;
 
 const formatUpdatedDate = (updatedAt: string): string => {
   try {
@@ -54,9 +58,8 @@ export default function ManageCategoriesPage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<AdminCarCategory | null>(
-    null,
-  );
+  const [editingCategory, setEditingCategory] =
+    useState<AdminCarCategory | null>(null);
   const [categoryName, setCategoryName] = useState("");
 
   const {
@@ -219,8 +222,7 @@ export default function ManageCategoriesPage() {
   );
   const isSubmitting =
     createCategoryMutation.isPending || updateCategoryMutation.isPending;
-  const isMutatingCategory =
-    isSubmitting || deleteCategoryMutation.isPending;
+  const isMutatingCategory = isSubmitting || deleteCategoryMutation.isPending;
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -364,82 +366,105 @@ export default function ManageCategoriesPage() {
                 Failed to load categories. {categoriesError.message}
               </p>
             ) : null}
-            <Table>
-              <TableHeader>
-                <TableRow className="border-gray-300">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Cars</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead className="text-right pr-7">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoadingCategories ? (
-                  <TableRow className="border-gray-300">
-                    <TableCell colSpan={5} className="py-6 text-center">
-                      Loading categories...
-                    </TableCell>
+            <TableScrollArea
+              className="will-change-scroll [content-visibility:auto] [contain-intrinsic-size:352px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300"
+              style={{
+                maxHeight: `${CATEGORY_TABLE_HEADER_HEIGHT_PX + CATEGORY_TABLE_VISIBLE_ROWS * CATEGORY_TABLE_ROW_HEIGHT_PX}px`,
+              }}
+            >
+              <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
+                <TableHeader className="bg-white [&_tr]:border-gray-300">
+                  <TableRow className="border-gray-300 bg-white hover:bg-white">
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Name
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Cars
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Status
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 font-medium sm:px-3">
+                      Updated
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-20 border-b border-gray-300 bg-white px-2 py-2.5 text-right font-medium sm:px-3">
+                      Actions
+                    </TableHead>
                   </TableRow>
-                ) : filteredCategories.length === 0 ? (
-                  <TableRow className="border-gray-300">
-                    <TableCell colSpan={5} className="py-6 text-center">
-                      {searchQuery.trim()
-                        ? "No categories match your search."
-                        : "No categories found."}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredCategories.map((category) => (
-                    <TableRow key={category.id} className="border-gray-300">
-                      <TableCell className="font-medium">
-                        {category.name}
-                      </TableCell>
-                      <TableCell>{category.carsCount}</TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(category.id)}
-                          className=" rounded-full "
-                          disabled={isMutatingCategory}
-                        >
-                          <Badge
-                            className={
-                              category.isActive
-                                ? "bg-green-100 text-green-700 border border-green-500 hover:bg-green-200 hover:shadow-3xl"
-                                : "bg-gray-100 text-gray-700 border border-gray-500 hover:bg-gray-200 hover:shadow-3xl"
-                            }
-                          >
-                            {category.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </button>
-                      </TableCell>
-                      <TableCell>{formatUpdatedDate(category.updatedAt)}</TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditCategory(category)}
-                            disabled={isMutatingCategory}
-                          >
-                            <Edit className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteCategory(category.id)}
-                            disabled={isMutatingCategory}
-                          >
-                            <Trash2 className="size-4 text-red-600" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {isLoadingCategories ? (
+                    <TableSkeletonRows
+                      columns={5}
+                      rows={CATEGORY_TABLE_VISIBLE_ROWS}
+                    />
+                  ) : filteredCategories.length === 0 ? (
+                    <TableRow className="border-gray-300">
+                      <TableCell
+                        colSpan={5}
+                        className="border-b border-gray-200 py-6 text-center"
+                      >
+                        {searchQuery.trim()
+                          ? "No categories match your search."
+                          : "No categories found."}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredCategories.map((category) => (
+                      <TableRow key={category.id} className="border-gray-300">
+                        <TableCell className="border-b border-gray-200 font-medium">
+                          {category.name}
+                        </TableCell>
+                        <TableCell className="border-b border-gray-200">
+                          {category.carsCount}
+                        </TableCell>
+                        <TableCell className="border-b border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(category.id)}
+                            className="rounded-full"
+                            disabled={isMutatingCategory}
+                          >
+                            <Badge
+                              className={
+                                category.isActive
+                                  ? "bg-green-100 text-green-700 border border-green-500 hover:bg-green-200 hover:shadow-3xl"
+                                  : "bg-gray-100 text-gray-700 border border-gray-500 hover:bg-gray-200 hover:shadow-3xl"
+                              }
+                            >
+                              {category.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </button>
+                        </TableCell>
+                        <TableCell className="border-b border-gray-200">
+                          {formatUpdatedDate(category.updatedAt)}
+                        </TableCell>
+                        <TableCell className="border-b border-gray-200">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditCategory(category)}
+                              disabled={isMutatingCategory}
+                            >
+                              <Edit className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteCategory(category.id)}
+                              disabled={isMutatingCategory}
+                            >
+                              <Trash2 className="size-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </table>
+            </TableScrollArea>
           </div>
         </CardContent>
       </Card>

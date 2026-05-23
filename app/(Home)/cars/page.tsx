@@ -41,7 +41,7 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   status: car.status,
-  available: car.status === "available",
+  available: car.status === "available" && (car.category?.isActive ?? true),
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
@@ -69,7 +69,10 @@ const fetchPublicCars = async (signal?: AbortSignal): Promise<PublicCar[]> => {
   }
 
   const backendCars = (await response.json()) as BackendCar[];
-  return backendCars.map(mapBackendCarToPublicCar);
+  // Filter out cars from inactive categories
+  return backendCars
+    .filter((car) => car.category?.isActive !== false)
+    .map(mapBackendCarToPublicCar);
 };
 
 export default function CarsPage() {

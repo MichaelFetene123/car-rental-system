@@ -536,7 +536,7 @@ export default function ManageNotifications() {
                 <TableBody>
                   {logs.map((log) => (
                     <TableRow key={log.id} className="border-gray-300 ">
-                      <TableCell>
+                      <TableCell className="border-b border-gray-200">
                         <div className="flex items-center gap-2">
                           {log.type === "email" ? (
                             <Mail className="size-4 text-blue-600" />
@@ -546,9 +546,13 @@ export default function ManageNotifications() {
                           <span className="uppercase text-xs">{log.type}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{log.recipient}</TableCell>
-                      <TableCell>{log.subject}</TableCell>
-                      <TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        {log.recipient}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        {log.subject}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
                         <Badge
                           variant={
                             log.status === "sent"
@@ -562,7 +566,7 @@ export default function ManageNotifications() {
                           {log.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="border-b border-gray-200 text-muted-foreground">
                         {log.sentAt}
                       </TableCell>
                     </TableRow>

@@ -26,6 +26,7 @@ export const PUBLIC_CAR_CATEGORIES_QUERY_KEY = ["carCategories"] as const;
 export const ADMIN_CAR_CATEGORIES_QUERY_KEY = ["adminCarCategories"] as const;
 
 const parseErrorMessage = async (response: Response): Promise<string> => {
+
   try {
     const error = (await response.json()) as { message?: string | string[] };
     if (Array.isArray(error.message)) return error.message.join(", ");

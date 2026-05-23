@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
@@ -31,28 +31,154 @@ import {
   SelectValue,
 } from "@/app/ui/select";
 import { toast } from "sonner";
-import { User, initialUsers } from "@/app/lib/data";
+// import { User, initialUsers } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
 
+import {
+  fetchAdminUsers,
+  createAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
+  assignRolesToUser,
+  adminUsersQueryKey,
+  publicUsersQueryKey,
+  type AdminUserMutationResult,
+  type AdminUsers,
+  type userData,
+} from "@/app/lib/adminMangeUsers";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+const ADMIN_USERS_REFRESH_INTERVAL_MS = 15 * 1000;
+const DEFAULT_VISIBLE_ROWS = 5;
+const TABLE_HEADER_HEIGHT_PX = 52;
+const TABLE_ROW_HEIGHT_PX = 56;
+
+type ManagedUser = Omit<AdminUserMutationResult, "role" | "status"> & {
+  role: userData["role"];
+  status: userData["status"];
+  phone?: string | null;
+};
+
 export default function ManageUsers() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUsers | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
-    role: "customer" as User["role"],
-    status: "active" as User["status"],
+    role: "customer" as userData["role"],
+    status: "active" as userData["status"],
   });
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.phone.includes(searchQuery),
-  );
+  // fatch real user data from backend using react query and our api functions in lib/adminDasboardMangeUsers.ts
+
+  const {
+    data: adminUsersData,
+    isPending: isLoadingUsers,
+    error: UserError,
+  } = useQuery<ManagedUser[], Error>({
+    queryKey: adminUsersQueryKey,
+    queryFn: async () => (await fetchAdminUsers()) as ManagedUser[],
+    refetchInterval: ADMIN_USERS_REFRESH_INTERVAL_MS,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: "always",
+    refetchIntervalInBackground: true,
+  });
+
+  const syncUsersQueries = () => {
+    queryClient.invalidateQueries({
+      queryKey: adminUsersQueryKey,
+      refetchType: "active",
+    });
+  };
+
+  // create user by calling createAdminUser from lib/adminMangeUsers.ts and then refetching the users list
+
+  const createUserMutation = useMutation({
+    mutationFn: (formData: userData) => createAdminUser(formData),
+    onSuccess: () => {
+      syncUsersQueries();
+      setIsDialogOpen(false);
+      toast.success("User created successfully");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create user",
+      );
+    },
+  });
+
+  // update user by calling updateAdminUser from lib/adminMangeUsers.ts and then refetching the users list
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, ...updatedUser }: Partial<userData> & { id: string }) =>
+      updateAdminUser(id, updatedUser),
+    onSuccess: () => {
+      syncUsersQueries();
+      setIsDialogOpen(false);
+      toast.success("User updated successfully");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update user",
+      );
+    },
+  });
+
+  // delete user by calling deleteAdminUser from lib/adminDasboardMangeUsers.ts and then refetching the users list
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => deleteAdminUser(id),
+    onSuccess: () => {
+      syncUsersQueries();
+      toast.success("User deleted successfully");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete user",
+      );
+    },
+  });
+
+  // assign roles to user by calling assignRolesToUser from lib/adminDasboardMangeUsers.ts and then refetching the users list
+  const assignRolesMutation = useMutation({
+    mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
+      assignRolesToUser(userId, roles),
+    onSuccess: () => {
+      syncUsersQueries();
+      toast.success("User roles updated successfully");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update user roles",
+      );
+    },
+  });
+
+// todo: add function to handle role assignment and call assignRolesMutation.mutate with the user id and selected roles
+const handleAssignRoles = (userId: string, roles: string[]) => {
+  assignRolesMutation.mutate({ userId, roles });
+}
+
+  const filterUsers = useMemo(() => {
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+
+    return adminUsersData?.filter((user) => {
+      const name = (user?.name ?? "").toLowerCase();
+      const email = (user?.email ?? "").toLowerCase();
+      const phoneMatches = (user?.phone ?? "").includes(normalizedQuery);
+
+      return (
+        name.includes(normalizedQuery) ||
+        email.includes(normalizedQuery) ||
+        phoneMatches
+      );
+    });
+  }, [adminUsersData, searchQuery]);
 
   const handleAddUser = () => {
     setEditingUser(null);
@@ -66,46 +192,33 @@ export default function ManageUsers() {
     setIsDialogOpen(true);
   };
 
-  const handleEditUser = (user: User) => {
-    setEditingUser(user);
+  const handleEditUser = (user: ManagedUser) => {
+    setEditingUser(user as AdminUsers);
     setFormData({
       name: user.name,
       email: user.email,
-      phone: user.phone,
-      role: user.role,
-      status: user.status,
+      phone: user.phone ?? "",
+      role: user.role as userData["role"],
+      status: user.status as userData["status"],
     });
     setIsDialogOpen(true);
   };
 
   const handleDeleteUser = (id: string) => {
-    setUsers(users.filter((user) => user.id !== id));
-    toast.success("User deleted successfully");
+    deleteUserMutation.mutate(id);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser) {
-      setUsers(
-        users.map((user) =>
-          user.id === editingUser.id ? { ...user, ...formData } : user,
-        ),
-      );
-      toast.success("User updated successfully");
+      updateUserMutation.mutate({ id: editingUser.id, ...formData });
     } else {
-      const newUser: User = {
-        id: Date.now().toString(),
-        ...formData,
-        joinDate: new Date().toISOString().split("T")[0],
-        totalBookings: 0,
-      };
-      setUsers([...users, newUser]);
-      toast.success("User added successfully");
+      createUserMutation.mutate(formData);
     }
     setIsDialogOpen(false);
   };
 
-  const getStatusColor = (status: User["status"]) => {
+  const getStatusColor = (status: userData["status"]) => {
     switch (status) {
       case "active":
         return "bg-green-100 text-green-700";
@@ -116,7 +229,7 @@ export default function ManageUsers() {
     }
   };
 
-  const getRoleColor = (role: User["role"]) => {
+  const getRoleColor = (role: userData["role"]) => {
     switch (role) {
       case "admin":
         return "bg-purple-100 text-purple-700";
@@ -154,7 +267,7 @@ export default function ManageUsers() {
           </CardHeader>
           <CardContent className="text-blue-900">
             <div className="text-3xl font-semibold text-blue-900">
-              {users.length}
+              {adminUsersData?.length}
             </div>
           </CardContent>
         </Card>
@@ -166,7 +279,7 @@ export default function ManageUsers() {
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-3xl font-semibold text-emerald-900">
-              {users.filter((u) => u.status === "active").length}
+              {adminUsersData?.filter((u) => u.status === "active").length}
             </div>
           </CardContent>
         </Card>
@@ -178,7 +291,7 @@ export default function ManageUsers() {
           </CardHeader>
           <CardContent className="text-amber-900">
             <div className="text-3xl font-semibold text-amber-900">
-              {users.filter((u) => u.role === "admin").length}
+              {adminUsersData?.filter((u) => u.role === "admin").length}
             </div>
           </CardContent>
         </Card>
@@ -190,7 +303,7 @@ export default function ManageUsers() {
           </CardHeader>
           <CardContent className="text-rose-900">
             <div className="text-3xl font-semibold text-rose-900">
-              {users.filter((u) => u.role === "customer").length}
+              {adminUsersData?.filter((u) => u.role === "customer").length}
             </div>
           </CardContent>
         </Card>
@@ -263,7 +376,10 @@ export default function ManageUsers() {
                 <Select
                   value={formData.role}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, role: value as User["role"] })
+                    setFormData({
+                      ...formData,
+                      role: value as userData["role"],
+                    })
                   }
                 >
                   <SelectTrigger className="border-gray-500 ">
@@ -283,7 +399,7 @@ export default function ManageUsers() {
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
-                      status: value as User["status"],
+                      status: value as userData["status"],
                     })
                   }
                 >
@@ -335,58 +451,68 @@ export default function ManageUsers() {
         </CardHeader>
         <CardContent>
           <Table containerClassName="bg-white rounded-lg">
-              <TableHeader>
-                <TableRow className=" border-gray-300">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Join Date</TableHead>
-                  <TableHead>Bookings</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+            <TableHeader>
+              <TableRow className=" border-gray-300">
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Join Date</TableHead>
+                <TableHead>Bookings</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filterUsers?.map((user) => (
+                <TableRow key={user.id} className="border-gray-300">
+                  <TableCell className="border-b border-gray-200">
+                    {user.name}
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200">
+                    {user.email}
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200">
+                    {user.phone}
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200">
+                    <Badge className={getRoleColor(user.role)}>
+                      {user.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200">
+                    <Badge className={getStatusColor(user.status)}>
+                      {user.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200">
+                    {formatDate(user.createdAt)}
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200">
+                    {user.totalBookings ?? 0}
+                  </TableCell>
+                  <TableCell className="border-b border-gray-200 text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditUser(user)}
+                      >
+                        <Edit className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteUser(user.id)}
+                      >
+                        <Trash2 className="size-4 text-red-600" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id} className="border-gray-300">
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.phone}</TableCell>
-                    <TableCell>
-                      <Badge className={getRoleColor(user.role)}>
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(user.status)}>
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(user.joinDate)}</TableCell>
-                    <TableCell>{user.totalBookings}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditUser(user)}
-                        >
-                          <Edit className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteUser(user.id)}
-                        >
-                          <Trash2 className="size-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

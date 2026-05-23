@@ -30,6 +30,7 @@ export type CurrentUser = {
   sub: string;
   email?: string;
   full_name?: string;
+  totalBookings?: number | null;
   roles: string[];
   permissions: string[];
   tokenVersion: number;
@@ -43,7 +44,9 @@ type TokenPayload = {
 };
 
 type ProfileUser = {
+  name?: string;
   full_name?: string;
+  totalBookings?: number | null;
 };
 
 let refreshPromise: Promise<string> | null = null;
@@ -285,7 +288,8 @@ export const fetchCurrentUser = async (): Promise<CurrentUser> => {
 
     return {
       ...user,
-      full_name: profile.full_name ?? user.full_name,
+      full_name: profile.full_name ?? profile.name ?? user.full_name,
+      totalBookings: profile.totalBookings ?? user.totalBookings,
     };
   } catch {
     return user;

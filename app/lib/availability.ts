@@ -4,6 +4,11 @@ export type UnavailablePeriod = {
   days: number;
 };
 
+export type CarAvailabilityInfo = {
+  isBookable: boolean;
+  reason?: string; // "category_inactive", "car_unavailable", "car_not_available"
+};
+
 const dayInMs = 1000 * 60 * 60 * 24;
 
 const startOfDay = (date: Date) =>
@@ -49,9 +54,7 @@ export const getUnavailableDetailLabel = (
   return `This car is unavailable from ${formatShortDate(start)} to ${formatShortDate(end)} (${dayCount} ${dayCount === 1 ? "day" : "days"}).`;
 };
 
-export const getUnavailableRangeLabel = (
-  period?: UnavailablePeriod | null,
-) => {
+export const getUnavailableRangeLabel = (period?: UnavailablePeriod | null) => {
   if (!period) return null;
 
   const start = new Date(period.startDate);
@@ -76,4 +79,27 @@ export const isDateRangeUnavailable = (
   const windowEnd = new Date(end.getTime() + bufferMs);
 
   return pickupDate < windowEnd && returnDate > windowStart;
+};
+
+export const getCarAvailabilityStatus = (
+  carStatus: string,
+  categoryIsActive: boolean | undefined,
+): CarAvailabilityInfo => {
+  if (!categoryIsActive) {
+    return {
+      isBookable: false,
+      reason: "category_inactive",
+    };
+  }
+
+  if (carStatus !== "available") {
+    return {
+      isBookable: false,
+      reason: "car_not_available",
+    };
+  }
+
+  return {
+    isBookable: true,
+  };
 };

@@ -62,6 +62,7 @@ type LocationsApiResponse = {
 
 type ManageCar = Car & {
   categoryId?: string;
+  categoryIsActive?: boolean;
   imageUrl?: string | null;
   location: string;
   locationId?: string;
@@ -80,7 +81,7 @@ type ApiCar = {
   imageUrl?: string | null;
   categoryId?: string | null;
   homeLocationId?: string | null;
-  category?: { id: string; name: string } | null;
+  category?: { id: string; name: string; isActive?: boolean } | null;
   homeLocation?: {
     id: string;
     name: string;
@@ -126,6 +127,7 @@ const mapApiCarToUiCar = (car: ApiCar): ManageCar => ({
   fuelType: car.fuelType ?? "",
   category: car.category?.name ?? "Unknown",
   categoryId: car.categoryId ?? car.category?.id ?? undefined,
+  categoryIsActive: car.category?.isActive,
   location: car.homeLocation?.name ?? "Unknown",
   locationId: car.homeLocationId ?? car.homeLocation?.id ?? undefined,
   price: Number(car.pricePerDay ?? 0),
@@ -182,7 +184,7 @@ const CarTableRow = memo(function CarTableRow({
 }: CarTableRowProps) {
   return (
     <TableRow className="border-gray-300">
-      <TableCell className="px-2 py-2.5 align-middle sm:px-3">
+      <TableCell className="border-b border-gray-200 px-2 py-2.5 align-middle sm:px-3">
         <div className="flex min-w-0 items-center gap-2">
           <ImageWithFallback
             src={imageSrc}
@@ -196,32 +198,39 @@ const CarTableRow = memo(function CarTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className="max-w-[120px] px-2 py-2.5 align-middle sm:px-3">
-        <span className="block truncate text-gray-700" title={car.category}>
-          {car.category}
-        </span>
+      <TableCell className="max-w-30 border-b border-gray-200 px-2 py-2.5 align-middle sm:px-3">
+        <div className="flex flex-col gap-1">
+          <span className="block truncate text-gray-700" title={car.category}>
+            {car.category}
+          </span>
+          {car.categoryIsActive === false && (
+            <Badge className="w-fit bg-orange-100 text-orange-700 border border-orange-300 text-xs">
+              Category Inactive
+            </Badge>
+          )}
+        </div>
       </TableCell>
-      <TableCell className="max-w-[130px] px-2 py-2.5 align-middle sm:px-3">
+      <TableCell className="max-w-32.5 border-b border-gray-200 px-2 py-2.5 align-middle sm:px-3">
         <span className="block truncate text-gray-700" title={car.location}>
           {car.location}
         </span>
       </TableCell>
-      <TableCell className="px-2 py-2.5 text-sm text-gray-700 sm:px-3">
+      <TableCell className="border-b border-gray-200 px-2 py-2.5 text-sm text-gray-700 sm:px-3">
         {car.year}
       </TableCell>
-      <TableCell className="px-2 py-2.5 text-sm text-gray-700 sm:px-3">
+      <TableCell className="border-b border-gray-200 px-2 py-2.5 text-sm text-gray-700 sm:px-3">
         <span className="block truncate">{car.transmission}</span>
       </TableCell>
-      <TableCell className="px-2 py-2.5 text-sm text-gray-700 sm:px-3">
+      <TableCell className="border-b border-gray-200 px-2 py-2.5 text-sm text-gray-700 sm:px-3">
         {car.seats}
       </TableCell>
-      <TableCell className="px-2 py-2.5 font-medium text-gray-800 sm:px-3">
+      <TableCell className="border-b border-gray-200 px-2 py-2.5 font-medium text-gray-800 sm:px-3">
         ${car.price}
       </TableCell>
-      <TableCell className="px-2 py-2.5 sm:px-3">
+      <TableCell className="border-b border-gray-200 px-2 py-2.5 sm:px-3">
         <Badge className={getStatusColor(car.status)}>{car.status}</Badge>
       </TableCell>
-      <TableCell className="w-[86px] px-2 py-2.5 text-right sm:px-3">
+      <TableCell className="w-21.5 border-b border-gray-200 px-2 py-2.5 text-right sm:px-3">
         <div className="flex justify-end gap-1">
           <Button variant="ghost" size="icon" onClick={() => onEdit(car)}>
             <Edit className="size-4" />
@@ -258,10 +267,10 @@ export default function ManageCars() {
     router.replace("/login");
   }, [router]);
 
-  const {
-    data: categories = [],
-    error: categoriesError,
-  } = useQuery<CarCategoryOption[], Error>({
+  const { data: categories = [], error: categoriesError } = useQuery<
+    CarCategoryOption[],
+    Error
+  >({
     queryKey: PUBLIC_CAR_CATEGORIES_QUERY_KEY,
     queryFn: ({ signal }) => fetchPublicCarCategories(signal),
     staleTime: 0,
@@ -273,6 +282,8 @@ export default function ManageCars() {
   });
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const loadCars = async () => {
       setIsLoadingCars(true);
       setCarsLoadError(null);
@@ -281,6 +292,7 @@ export default function ManageCars() {
         const res = await authFetch(`/admin/cars`, {
           method: "GET",
           cache: "no-store",
+          signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -290,6 +302,10 @@ export default function ManageCars() {
         const data = (await res.json()) as ApiCar[];
         setCars(data.map(mapApiCarToUiCar));
       } catch (err) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
         if (
           err instanceof Error &&
           /log in again|refresh token|session/i.test(err.message)
@@ -303,11 +319,19 @@ export default function ManageCars() {
         setCarsLoadError(message);
         toast.error(`Cars load failed: ${message}`);
       } finally {
+        if (controller.signal.aborted) {
+          return;
+        }
+
         setIsLoadingCars(false);
       }
     };
 
     void loadCars();
+
+    return () => {
+      controller.abort();
+    };
   }, [handleAuthExpired]);
 
   useEffect(() => {
@@ -429,7 +453,7 @@ export default function ManageCars() {
         const res = await authFetch(`/admin/cars/${id}`, {
           method: "DELETE",
         });
-// console.log("Response:", res);
+        // console.log("Response:", res);
 
         if (!res.ok) {
           throw new Error(await parseErrorMessage(res));
@@ -821,22 +845,22 @@ export default function ManageCars() {
         <CardContent>
           <div className="rounded-lg bg-white p-3 sm:p-4 md:p-5">
             <TableScrollArea
-              className="[will-change:scroll-position] [content-visibility:auto] [contain-intrinsic-size:416px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300"
+              className="will-change-scroll [content-visibility:auto] [contain-intrinsic-size:416px] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300"
               style={{
                 maxHeight: `${TABLE_HEADER_HEIGHT_PX + DEFAULT_VISIBLE_ROWS * TABLE_ROW_HEIGHT_PX}px`,
               }}
             >
-              <table className="w-full min-w-[950px] table-fixed border-separate border-spacing-0 text-sm">
+              <table className="w-full min-w-237.5 table-fixed border-separate border-spacing-0 text-sm">
                 <colgroup>
-                  <col className="w-[210px]" />
-                  <col className="w-[120px]" />
-                  <col className="w-[130px]" />
-                  <col className="w-[68px]" />
-                  <col className="w-[90px]" />
-                  <col className="w-[62px]" />
-                  <col className="w-[92px]" />
-                  <col className="w-[96px]" />
-                  <col className="w-[86px]" />
+                  <col className="w-52.5" />
+                  <col className="w-30" />
+                  <col className="w-32.5" />
+                  <col className="w-17" />
+                  <col className="w-22.5" />
+                  <col className="w-15.5" />
+                  <col className="w-23" />
+                  <col className="w-24" />
+                  <col className="w-21.5" />
                 </colgroup>
                 <TableHeader className="bg-white [&_tr]:border-gray-300">
                   <TableRow className="border-gray-300 bg-white hover:bg-white">
@@ -879,7 +903,7 @@ export default function ManageCars() {
                     <TableRow className="border-gray-300">
                       <TableCell
                         colSpan={9}
-                        className="text-center py-8 text-red-600"
+                        className="border-b border-gray-200 text-center py-8 text-red-600"
                       >
                         Failed to load cars: {carsLoadError}
                       </TableCell>
@@ -888,7 +912,7 @@ export default function ManageCars() {
                     <TableRow className="border-gray-300">
                       <TableCell
                         colSpan={9}
-                        className="text-center py-8 text-gray-600"
+                        className="border-b border-gray-200 text-center py-8 text-gray-600"
                       >
                         No cars found.
                       </TableCell>

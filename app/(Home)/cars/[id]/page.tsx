@@ -26,6 +26,7 @@ import {
   isDateRangeUnavailable,
 } from "@/app/lib/availability";
 import { authFetch } from "@/app/lib/auth";
+import { CURRENT_USER_QUERY_KEY } from "@/app/lib/auth-queries";
 import { API_BASE_URL } from "@/server/server";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -43,6 +44,7 @@ type BackendCarWithLocationId = BackendCar & {
 
 type PublicCarDetail = PublicCar & {
   homeLocationId?: string;
+  categoryIsActive?: boolean;
 };
 
 type CreateBookingPayload = {
@@ -60,6 +62,7 @@ const mapBackendCarToPublicCar = (
   name: car.name,
   year: car.year,
   category: car.category?.name ?? "Other",
+  categoryIsActive: car.category?.isActive,
   location: car.homeLocation?.name ?? "Unknown",
   homeLocationId: car.homeLocation?.id,
   seats: car.seats,
@@ -68,7 +71,7 @@ const mapBackendCarToPublicCar = (
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   status: car.status,
-  available: car.status === "available",
+  available: car.status === "available" && (car.category?.isActive ?? true),
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
@@ -158,6 +161,10 @@ export default function CarDetailPage() {
         queryKey: ["myBookings"],
         refetchType: "all",
       });
+      await queryClient.invalidateQueries({
+        queryKey: CURRENT_USER_QUERY_KEY,
+        refetchType: "active",
+      });
       toast.success("Booking request submitted successfully!");
       navigate.replace("/my-bookings");
     },
@@ -237,7 +244,9 @@ export default function CarDetailPage() {
         )
       : false;
   const hasActiveUnavailable = Boolean(unavailableBadge);
-  const isCarUnavailable = car.status !== "available" || hasActiveUnavailable;
+  const isCategoryInactive = car.categoryIsActive === false;
+  const isCarUnavailable =
+    car.status !== "available" || hasActiveUnavailable || isCategoryInactive;
 
   const handleBookNow = async () => {
     if (bookingMutation.isPending) return;
@@ -324,10 +333,15 @@ export default function CarDetailPage() {
                 <p className="text-gray-600">
                   {car.year} • {car.category}
                 </p>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <CarStatusBadge status={car.status} />
+                  {car.categoryIsActive === false && (
+                    <Badge className="bg-orange-100 text-orange-700 border border-orange-300">
+                      Category Inactive
+                    </Badge>
+                  )}
                   {unavailableBadge ? (
-                    <Badge className="mt-2 bg-amber-100 text-amber-800">
+                    <Badge className="bg-amber-100 text-amber-800">
                       {unavailableBadge}
                     </Badge>
                   ) : null}
@@ -477,6 +491,11 @@ export default function CarDetailPage() {
                   {unavailableRange
                     ? `Unavailable: ${unavailableRange}`
                     : "This car is temporarily unavailable."}
+                </p>
+              ) : isCarUnavailable && isCategoryInactive ? (
+                <p className="mb-3 text-sm text-orange-700">
+                  This category is currently inactive. Bookings are not
+                  available for cars in this category.
                 </p>
               ) : isCarUnavailable ? (
                 <p className="mb-3 text-sm text-amber-700">

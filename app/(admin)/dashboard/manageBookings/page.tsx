@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { toast } from "sonner";
 import { Badge } from "@/app/ui/badge";
@@ -75,6 +76,7 @@ import { Textarea } from "@/app/ui/textarea";
 import { Switch } from "@/app/ui/switch";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
 import { broadcastBookingSync } from "@/app/lib/booking-sync";
+import { clearStoredAuth } from "@/app/lib/auth";
 
 const DEFAULT_VISIBLE_ROWS = 6;
 const TABLE_HEADER_HEIGHT_PX = 52;
@@ -82,6 +84,7 @@ const TABLE_ROW_HEIGHT_PX = 56;
 const ADMIN_BOOKINGS_REFRESH_INTERVAL_MS = 15 * 1000;
 
 const ManageBookingsPage = () => {
+  const router = useRouter();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [reviewQueue, setReviewQueue] = useState<AdminReviewQueueItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -117,6 +120,12 @@ const ManageBookingsPage = () => {
     additionalPaymentMethod: "cash" as PaymentMethod,
   });
 
+  const handleAuthExpired = useCallback(() => {
+    clearStoredAuth();
+    toast.error("Session expired. Please log in again.");
+    router.replace("/login");
+  }, [router]);
+
   const reviewQueueMap = useMemo<Map<string, AdminReviewQueueItem>>(() => {
     return new Map(reviewQueue.map((item) => [item.booking.id, item]));
   }, [reviewQueue]);
@@ -137,6 +146,12 @@ const ManageBookingsPage = () => {
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to load bookings";
+
+        if (/refresh token|revoked|log in again|session/i.test(errorMessage)) {
+          handleAuthExpired();
+          return;
+        }
+
         setError(errorMessage);
         if (showLoading) {
           toast.error(errorMessage);
@@ -147,7 +162,7 @@ const ManageBookingsPage = () => {
         }
       }
     },
-    [],
+    [handleAuthExpired],
   );
 
   // Fetch bookings on mount, then auto-refresh for user booking updates.
@@ -786,10 +801,10 @@ const ManageBookingsPage = () => {
 
                       return (
                         <TableRow key={booking.id} className="border-gray-300">
-                          <TableCell className="max-w-35 wrap-break-word whitespace-normal text-center font-medium text-sm">
+                          <TableCell className="max-w-35 border-b border-gray-200 wrap-break-word whitespace-normal text-center font-medium text-sm">
                             {booking.bookingCode}
                           </TableCell>
-                          <TableCell className="max-w-47.5 overflow-hidden text-center">
+                          <TableCell className="max-w-47.5 border-b border-gray-200 overflow-hidden text-center">
                             <div className="min-w-0">
                               <p className="font-medium truncate">
                                 {booking.user?.full_name}
@@ -799,7 +814,7 @@ const ManageBookingsPage = () => {
                               </p>
                             </div>
                           </TableCell>
-                          <TableCell className="max-w-42.5 text-center">
+                          <TableCell className="max-w-42.5 border-b border-gray-200 text-center">
                             <div className="text-center">
                               <p className="font-medium text-center truncate">
                                 {booking.car?.name}
@@ -809,13 +824,13 @@ const ManageBookingsPage = () => {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="border-b border-gray-200 text-sm">
                             {formatDate(booking.pickupAt)}
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="border-b border-gray-200 text-sm">
                             {formatDate(booking.returnAt)}
                           </TableCell>
-                          <TableCell className="font-semibold text-center">
+                          <TableCell className="border-b border-gray-200 font-semibold text-center">
                             {formatCurrency(booking.totalAmount)}
                             {totalExtras > 0 ? (
                               <p className="text-xs text-amber-700">
@@ -828,7 +843,7 @@ const ManageBookingsPage = () => {
                               </p>
                             ) : null}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="border-b border-gray-200 text-center">
                             <div className="space-y-2">
                               <PaymentStatusBadge
                                 status={displayPaymentStatus}
@@ -839,10 +854,10 @@ const ManageBookingsPage = () => {
                               </p>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="border-b border-gray-200 text-center">
                             <BookingStatusBadge status={booking.status} />
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="border-b border-gray-200 text-center">
                             <div className="flex flex-col items-center gap-2">
                               {conflictLabel ? (
                                 <Badge
@@ -860,7 +875,7 @@ const ManageBookingsPage = () => {
                               ) : null}
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="border-b border-gray-200 text-center">
                             <div className="flex justify-center gap-2">
                               {canApprove && (
                                 <Button

@@ -53,12 +53,12 @@ export type BackendCar = {
   } | null;
   category?: {
     name: string;
+    isActive?: boolean;
   } | null;
   homeLocation?: {
     name: string;
   } | null;
 };
-
 
 export const initialCars: Car[] = [
   {

@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableScrollArea,
 } from "@/app/ui/table";
 import { Badge } from "@/app/ui/badge";
 import { Search, Edit, Trash2, Plus } from "lucide-react";
@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 // import { User, initialUsers } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
+import { TableSkeletonRows } from "@/app/ui/skeletons";
 
 import {
   fetchAdminUsers,
@@ -42,9 +43,12 @@ import {
   assignRolesToUser,
   adminUsersQueryKey,
   publicUsersQueryKey,
+  rolesQueryKey,
+  fetchRoles,
   type AdminUserMutationResult,
-  type AdminUsers,
-  type userData,
+  type CreateAdminUserPayload,
+  type UserRole,
+  type UserStatus,
 } from "@/app/lib/adminMangeUsers";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -54,8 +58,8 @@ const TABLE_HEADER_HEIGHT_PX = 52;
 const TABLE_ROW_HEIGHT_PX = 56;
 
 type ManagedUser = Omit<AdminUserMutationResult, "role" | "status"> & {
-  role: userData["role"];
-  status: userData["status"];
+  role: UserRole;
+  status: UserStatus;
   phone?: string | null;
 };
 
@@ -63,13 +67,15 @@ export default function ManageUsers() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUsers | null>(null);
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({});
+  const [editingUser, setEditingUser] =
+    useState<AdminUserMutationResult | null>(null);
   const [formData, setFormData] = useState({
-    name: "",
+    full_name: "",
     email: "",
     phone: "",
-    role: "customer" as userData["role"],
-    status: "active" as userData["status"],
+    password: "",
+    status: "active" as UserStatus,
   });
 
   // fatch real user data from backend using react query and our api functions in lib/adminDasboardMangeUsers.ts
@@ -89,6 +95,13 @@ export default function ManageUsers() {
     refetchIntervalInBackground: true,
   });
 
+  const { data: rolesData } = useQuery({
+    queryKey: rolesQueryKey,
+    queryFn: ({ signal }) => fetchRoles(signal),
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
   const syncUsersQueries = () => {
     queryClient.invalidateQueries({
       queryKey: adminUsersQueryKey,
@@ -99,7 +112,7 @@ export default function ManageUsers() {
   // create user by calling createAdminUser from lib/adminMangeUsers.ts and then refetching the users list
 
   const createUserMutation = useMutation({
-    mutationFn: (formData: userData) => createAdminUser(formData),
+    mutationFn: (formData: CreateAdminUserPayload) => createAdminUser(formData),
     onSuccess: () => {
       syncUsersQueries();
       setIsDialogOpen(false);
@@ -115,7 +128,10 @@ export default function ManageUsers() {
   // update user by calling updateAdminUser from lib/adminMangeUsers.ts and then refetching the users list
 
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, ...updatedUser }: Partial<userData> & { id: string }) =>
+    mutationFn: ({
+      id,
+      ...updatedUser
+    }: Partial<CreateAdminUserPayload> & { id: string }) =>
       updateAdminUser(id, updatedUser),
     onSuccess: () => {
       syncUsersQueries();
@@ -148,8 +164,13 @@ export default function ManageUsers() {
   const assignRolesMutation = useMutation({
     mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
       assignRolesToUser(userId, roles),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       syncUsersQueries();
+      setRoleDrafts((currentDrafts) => {
+        const nextDrafts = { ...currentDrafts };
+        delete nextDrafts[variables.userId];
+        return nextDrafts;
+      });
       toast.success("User roles updated successfully");
     },
     onError: (error: any) => {
@@ -159,15 +180,45 @@ export default function ManageUsers() {
     },
   });
 
-// todo: add function to handle role assignment and call assignRolesMutation.mutate with the user id and selected roles
-const handleAssignRoles = (userId: string, roles: string[]) => {
-  assignRolesMutation.mutate({ userId, roles });
-}
+  //  add function to handle role assignment and call assignRolesMutation.mutate with the user id and selected roles
+  const handleAssignRoles = (userId: string, roles: string[]) => {
+    if (roles.some((role) => role === "admin")) {
+      toast.error("Admin role assignment is not allowed.");
+      return;
+    }
+    assignRolesMutation.mutate({ userId, roles });
+  };
+
+  const updateRoleDraft = (userId: string, role: UserRole) => {
+    setRoleDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [userId]: role,
+    }));
+  };
+
+  const getRoleDraft = (user: ManagedUser) => {
+    return roleDrafts[user.id] ?? (user.role as UserRole);
+  };
+
+  const availableRoles = useMemo(() => {
+    const roleNames = rolesData?.map((role) => role.name) ?? [];
+    const fallbackRoles = adminUsersData?.map((user) => user.role) ?? [];
+    const merged = new Set(["user", "stuff", ...roleNames, ...fallbackRoles]);
+    merged.delete("admin");
+    return Array.from(merged).sort();
+  }, [rolesData, adminUsersData]);
+
+  const formatRoleLabel = (role: string) => {
+    if (role === "stuff") return "Staff";
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  };
 
   const filterUsers = useMemo(() => {
     const normalizedQuery = searchQuery.toLowerCase().trim();
 
-    return adminUsersData?.filter((user) => {
+    return adminUsersData
+      ?.filter((user) => user.role !== "admin")
+      .filter((user) => {
       const name = (user?.name ?? "").toLowerCase();
       const email = (user?.email ?? "").toLowerCase();
       const phoneMatches = (user?.phone ?? "").includes(normalizedQuery);
@@ -180,26 +231,31 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
     });
   }, [adminUsersData, searchQuery]);
 
+  const visibleUsers = useMemo(
+    () => adminUsersData?.filter((user) => user.role !== "admin") ?? [],
+    [adminUsersData],
+  );
+
   const handleAddUser = () => {
     setEditingUser(null);
     setFormData({
-      name: "",
+      full_name: "",
       email: "",
       phone: "",
-      role: "customer",
+      password: "",
       status: "active",
     });
     setIsDialogOpen(true);
   };
 
   const handleEditUser = (user: ManagedUser) => {
-    setEditingUser(user as AdminUsers);
+    setEditingUser(user);
     setFormData({
-      name: user.name,
+      full_name: user.name,
       email: user.email,
       phone: user.phone ?? "",
-      role: user.role as userData["role"],
-      status: user.status as userData["status"],
+      password: "",
+      status: user.status as UserStatus,
     });
     setIsDialogOpen(true);
   };
@@ -211,14 +267,27 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser) {
-      updateUserMutation.mutate({ id: editingUser.id, ...formData });
+      updateUserMutation.mutate({
+        id: editingUser.id,
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+        status: formData.status,
+        ...(formData.password ? { password: formData.password } : {}),
+      });
     } else {
-      createUserMutation.mutate(formData);
+      createUserMutation.mutate({
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        status: formData.status,
+      });
     }
     setIsDialogOpen(false);
   };
 
-  const getStatusColor = (status: userData["status"]) => {
+  const getStatusColor = (status: UserStatus) => {
     switch (status) {
       case "active":
         return "bg-green-100 text-green-700";
@@ -229,11 +298,11 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
     }
   };
 
-  const getRoleColor = (role: userData["role"]) => {
+  const getRoleColor = (role: UserRole) => {
     switch (role) {
       case "admin":
         return "bg-purple-100 text-purple-700";
-      case "customer":
+      case "user":
         return "bg-blue-100 text-blue-700";
       case "stuff":
         return "bg-yellow-100 text-yellow-700";
@@ -255,7 +324,7 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
       <div>
         <h1 className={`${lusitana.className} text-2xl mb-1`}>Manage Users</h1>
         <p className="text-muted-foreground">
-          View and manage customer and admin accounts
+          View and manage user and admin accounts
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-4">
@@ -267,7 +336,7 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
           </CardHeader>
           <CardContent className="text-blue-900">
             <div className="text-3xl font-semibold text-blue-900">
-              {adminUsersData?.length}
+              {visibleUsers.length}
             </div>
           </CardContent>
         </Card>
@@ -279,7 +348,7 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-3xl font-semibold text-emerald-900">
-              {adminUsersData?.filter((u) => u.status === "active").length}
+              {visibleUsers.filter((u) => u.status === "active").length}
             </div>
           </CardContent>
         </Card>
@@ -291,19 +360,19 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
           </CardHeader>
           <CardContent className="text-amber-900">
             <div className="text-3xl font-semibold text-amber-900">
-              {adminUsersData?.filter((u) => u.role === "admin").length}
+              0
             </div>
           </CardContent>
         </Card>
         <Card className="bg-rose-50 border-rose-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-rose-800">
-              Customers
+              Users
             </CardTitle>
           </CardHeader>
           <CardContent className="text-rose-900">
             <div className="text-3xl font-semibold text-rose-900">
-              {adminUsersData?.filter((u) => u.role === "customer").length}
+              {visibleUsers.filter((u) => u.role === "user").length}
             </div>
           </CardContent>
         </Card>
@@ -337,9 +406,9 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
-                  value={formData.name}
+                  value={formData.full_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
+                    setFormData({ ...formData, full_name: e.target.value })
                   }
                   required
                   className="border-gray-500"
@@ -372,25 +441,17 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      role: value as userData["role"],
-                    })
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
                   }
-                >
-                  <SelectTrigger className="border-gray-500 ">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="border-gray-300 bg-white">
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="stuff">Stuff</SelectItem>
-                  </SelectContent>
-                </Select>
+                  required={!editingUser}
+                  className="border-gray-500"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -399,7 +460,7 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
-                      status: value as userData["status"],
+                      status: value as UserStatus,
                     })
                   }
                 >
@@ -450,69 +511,126 @@ const handleAssignRoles = (userId: string, roles: string[]) => {
           </div>
         </CardHeader>
         <CardContent>
-          <Table containerClassName="bg-white rounded-lg">
-            <TableHeader>
-              <TableRow className=" border-gray-300">
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Join Date</TableHead>
-                <TableHead>Bookings</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filterUsers?.map((user) => (
-                <TableRow key={user.id} className="border-gray-300">
-                  <TableCell className="border-b border-gray-200">
-                    {user.name}
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200">
-                    {user.email}
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200">
-                    {user.phone}
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200">
-                    <Badge className={getRoleColor(user.role)}>
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200">
-                    <Badge className={getStatusColor(user.status)}>
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200">
-                    {formatDate(user.createdAt)}
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200">
-                    {user.totalBookings ?? 0}
-                  </TableCell>
-                  <TableCell className="border-b border-gray-200 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditUser(user)}
-                      >
-                        <Edit className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        <Trash2 className="size-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          <TableScrollArea className="max-h-128 rounded bg-white">
+            <table className="min-w-full caption-bottom text-sm">
+              <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-white">
+                <TableRow className=" border-gray-300">
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 pl-6 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Name
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 pl-6 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Email
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 pl-4 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Phone
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Role
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Status
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Join Date
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Bookings
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 text-center shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Actions
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoadingUsers ? (
+                  <TableSkeletonRows columns={8} rows={DEFAULT_VISIBLE_ROWS} />
+                ) : (
+                  filterUsers?.map((user) => (
+                    <TableRow key={user.id} className="border-gray-300">
+                      <TableCell className="border-b border-gray-200">
+                        {user.name}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        {user.email}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        {user.phone}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        <Badge className={getRoleColor(user.role)}>
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        <Badge className={getStatusColor(user.status)}>
+                          {user.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        {formatDate(user.createdAt)}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200">
+                        {user.totalBookings ?? 0}
+                      </TableCell>
+                      <TableCell className="border-b border-gray-200 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="flex items-center justify-center gap-2">
+                            <Select
+                              value={getRoleDraft(user)}
+                              onValueChange={(value) =>
+                                updateRoleDraft(user.id, value as UserRole)
+                              }
+                            >
+                              <SelectTrigger className="h-9 w-32 border-gray-300 bg-white text-left">
+                                <SelectValue placeholder="Role" />
+                              </SelectTrigger>
+                              <SelectContent className="border-gray-300 bg-white">
+                                {availableRoles.map((role) => (
+                                  <SelectItem key={role} value={role}>
+                                    {formatRoleLabel(role)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-500 text-white"
+                              disabled={
+                                assignRolesMutation.isPending ||
+                                getRoleDraft(user) === user.role
+                              }
+                              onClick={() =>
+                                handleAssignRoles(user.id, [getRoleDraft(user)])
+                              }
+                            >
+                              Save
+                            </Button>
+                          </div>
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditUser(user)}
+                            >
+                              <Edit className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteUser(user.id)}
+                            >
+                              <Trash2 className="size-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </table>
+          </TableScrollArea>
         </CardContent>
       </Card>
     </div>

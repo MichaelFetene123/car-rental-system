@@ -514,9 +514,7 @@ const ManageBookingsPage = () => {
     const conflicts = getConflictDetails(bookingId);
     if (!conflicts.length) return null;
 
-    const labels = conflicts.map((conflict) =>
-      conflict.conflictType === "overlap" ? "Overlap" : "Buffer",
-    );
+    const labels = conflicts.map(() => "Overlap");
 
     return `Conflict: ${labels.join(", ")}`;
   };

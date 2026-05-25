@@ -10,6 +10,7 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { PaymentBookingsSkeleton } from "@/app/ui/skeletons";
 import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
 import { useCurrentUser } from "@/app/lib/auth-queries";
+import { getLocationLabel } from "@/app/lib/format";
 import type { BookingStatus, PaymentStatus } from "@/app/lib/status";
 import {
   isPaymentCovered,
@@ -140,6 +141,7 @@ const fetchPaymentBookings = async (): Promise<PaymentBooking[]> => {
 };
 
 export default function PaymentPage() {
+  const suspensionMessage = "Your account is suspended. Booking is unavailable.";
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(
     null,
@@ -147,6 +149,7 @@ export default function PaymentPage() {
   const searchParams = useSearchParams();
   const bookingIdParam = searchParams.get("bookingId");
   const { data: currentUser } = useCurrentUser();
+  const isSuspendedUser = currentUser?.status === "suspended";
   const userKey =
     currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
   const {
@@ -204,6 +207,12 @@ export default function PaymentPage() {
 
   const handleChapaPayment = async () => {
     setPaymentError(null);
+
+    if (isSuspendedUser) {
+      setPaymentError(suspensionMessage);
+      return;
+    }
+
     if (!pendingBooking) {
       setPaymentError("No pending booking found to pay.");
       return;
@@ -299,7 +308,8 @@ export default function PaymentPage() {
                       {formatDateForDisplay(booking.returnAt)}
                     </p>
                     <p className="text-sm text-gray-600">
-                      {booking.pickupLocation} to {booking.returnLocation}
+                      {getLocationLabel(booking.pickupLocation)} to{" "}
+                      {getLocationLabel(booking.returnLocation)}
                     </p>
                   </div>
 
@@ -327,6 +337,9 @@ export default function PaymentPage() {
           <p className="text-3xl font-bold text-blue-600">
             ${bookingStats.totalMoney}
           </p>
+          {isSuspendedUser ? (
+            <p className="mt-2 text-sm text-red-600">{suspensionMessage}</p>
+          ) : null}
           {unpaidPendingBookings.length === 0 ? (
             <p className="mt-2 text-sm text-amber-700">
               No outstanding balance. Only unpaid pending bookings can be paid.
@@ -336,8 +349,16 @@ export default function PaymentPage() {
             <Button
               className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={handleChapaPayment}
-              disabled={!pendingBooking || processingBookingId !== null}
-              aria-disabled={!pendingBooking || processingBookingId !== null}
+              disabled={
+                !pendingBooking ||
+                processingBookingId !== null ||
+                isSuspendedUser
+              }
+              aria-disabled={
+                !pendingBooking ||
+                processingBookingId !== null ||
+                isSuspendedUser
+              }
             >
               {processingBookingId ? "Processing..." : "Checkout"}
             </Button>

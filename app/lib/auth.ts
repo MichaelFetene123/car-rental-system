@@ -31,6 +31,7 @@ export type CurrentUser = {
   email?: string;
   full_name?: string;
   totalBookings?: number | null;
+  status?: string;
   roles: string[];
   permissions: string[];
   tokenVersion: number;
@@ -47,6 +48,7 @@ type ProfileUser = {
   name?: string;
   full_name?: string;
   totalBookings?: number | null;
+  status?: string;
 };
 
 let refreshPromise: Promise<string> | null = null;
@@ -266,10 +268,6 @@ export const fetchCurrentUser = async (): Promise<CurrentUser> => {
 
   const user = JSON.parse(text) as CurrentUser;
 
-  if (user.full_name) {
-    return user;
-  }
-
   try {
     const profileResponse = await authFetch("/profile", {
       method: "GET",
@@ -290,6 +288,7 @@ export const fetchCurrentUser = async (): Promise<CurrentUser> => {
       ...user,
       full_name: profile.full_name ?? profile.name ?? user.full_name,
       totalBookings: profile.totalBookings ?? user.totalBookings,
+      status: profile.status ?? user.status,
     };
   } catch {
     return user;

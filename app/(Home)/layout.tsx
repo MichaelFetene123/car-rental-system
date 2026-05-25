@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Car, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
 import { Button } from "@/app/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCurrentUser, useLogoutMutation } from "@/app/lib/auth-queries";
 import {
   getCurrentUserEmail,
@@ -21,15 +21,23 @@ export default function CustomerLayout({
   const { data: currentUser } = useCurrentUser();
   const logoutMutation = useLogoutMutation();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  const fallbackEmail = getCurrentUserEmail();
-  const fallbackIsAdmin = isCurrentUserAdmin();
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const fallbackEmail = isHydrated ? getCurrentUserEmail() : null;
+  const fallbackIsAdmin = isHydrated ? isCurrentUserAdmin() : false;
   const isAuthenticated = Boolean(currentUser || fallbackEmail);
   const isAdmin = Boolean(
     currentUser?.roles?.some((role) => role === "admin") ?? fallbackIsAdmin,
   );
-  const userName = currentUser?.full_name ?? getCurrentUserName();
-  const userEmail = currentUser?.email ?? fallbackEmail;
+  const rawUserName =
+    currentUser?.full_name ?? (isHydrated ? getCurrentUserName() : undefined);
+  const rawUserEmail = currentUser?.email ?? fallbackEmail;
+  const userName = typeof rawUserName === "string" ? rawUserName : undefined;
+  const userEmail = typeof rawUserEmail === "string" ? rawUserEmail : undefined;
 
   const isActive = (path: string) => pathname === path;
   const displayName = userName
@@ -132,7 +140,7 @@ export default function CustomerLayout({
                       title={userName ?? userEmail}
                     >
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold uppercase text-white">
-                        {(userName ?? userEmail).charAt(0)}
+                        {(userName ?? userEmail ?? "").charAt(0)}
                       </div>
                       <span className="max-w-32 truncate text-sm font-semibold text-blue-800">
                         {displayName}

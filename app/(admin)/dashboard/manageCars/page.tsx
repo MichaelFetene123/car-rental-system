@@ -36,6 +36,7 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/server/server";
 import { authFetch, clearStoredAuth } from "@/app/lib/auth";
+import { getLocationLabel } from "@/app/lib/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
 import {
@@ -211,8 +212,11 @@ const CarTableRow = memo(function CarTableRow({
         </div>
       </TableCell>
       <TableCell className="max-w-32.5 border-b border-gray-200 px-2 py-2.5 align-middle sm:px-3">
-        <span className="block truncate text-gray-700" title={car.location}>
-          {car.location}
+        <span
+          className="block truncate text-gray-700"
+          title={getLocationLabel(car.location)}
+        >
+          {getLocationLabel(car.location)}
         </span>
       </TableCell>
       <TableCell className="border-b border-gray-200 px-2 py-2.5 text-sm text-gray-700 sm:px-3">
@@ -395,7 +399,9 @@ export default function ManageCars() {
       (car) =>
         car.name.toLowerCase().includes(normalizedSearchQuery) ||
         car.category.toLowerCase().includes(normalizedSearchQuery) ||
-        car.location.toLowerCase().includes(normalizedSearchQuery),
+        getLocationLabel(car.location)
+          .toLowerCase()
+          .includes(normalizedSearchQuery),
     );
   }, [cars, searchQuery]);
 

@@ -35,6 +35,7 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { MyBookingsSkeleton } from "@/app/ui/skeletons";
 import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
 import { CURRENT_USER_QUERY_KEY, useCurrentUser } from "@/app/lib/auth-queries";
+import { getLocationLabel } from "@/app/lib/format";
 import { subscribeToBookingSync } from "@/app/lib/booking-sync";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -402,10 +403,16 @@ export default function MyBookingsPage() {
 
     bookings.forEach((booking) => {
       if (booking.pickupLocationId) {
-        locationMap.set(booking.pickupLocationId, booking.pickupLocation);
+        locationMap.set(
+          booking.pickupLocationId,
+          getLocationLabel(booking.pickupLocation),
+        );
       }
       if (booking.returnLocationId) {
-        locationMap.set(booking.returnLocationId, booking.returnLocation);
+        locationMap.set(
+          booking.returnLocationId,
+          getLocationLabel(booking.returnLocation),
+        );
       }
     });
 
@@ -468,36 +475,39 @@ export default function MyBookingsPage() {
       return response.json();
     },
     onSuccess: (_data, payload) => {
-      queryClient.setQueryData<Booking[]>(myBookingsQueryKey, (current = []) => {
-        const pickupLocationName =
-          current.find((b) => b.pickupLocationId === payload.pickupLocationId)
-            ?.pickupLocation ??
-          current.find((b) => b.returnLocationId === payload.pickupLocationId)
-            ?.returnLocation ??
-          "Unknown";
+      queryClient.setQueryData<Booking[]>(
+        myBookingsQueryKey,
+        (current = []) => {
+          const pickupLocationName =
+            current.find((b) => b.pickupLocationId === payload.pickupLocationId)
+              ?.pickupLocation ??
+            current.find((b) => b.returnLocationId === payload.pickupLocationId)
+              ?.returnLocation ??
+            "Unknown";
 
-        const returnLocationName =
-          current.find((b) => b.returnLocationId === payload.returnLocationId)
-            ?.returnLocation ??
-          current.find((b) => b.pickupLocationId === payload.returnLocationId)
-            ?.pickupLocation ??
-          "Unknown";
+          const returnLocationName =
+            current.find((b) => b.returnLocationId === payload.returnLocationId)
+              ?.returnLocation ??
+            current.find((b) => b.pickupLocationId === payload.returnLocationId)
+              ?.pickupLocation ??
+            "Unknown";
 
-        return current.map((booking) => {
-          if (booking.id !== payload.bookingId) return booking;
+          return current.map((booking) => {
+            if (booking.id !== payload.bookingId) return booking;
 
-          return {
-            ...booking,
-            pickupDate: payload.pickupAt,
-            returnDate: payload.returnAt,
-            rentalPeriod: `${formatDateForDisplay(payload.pickupAt)} - ${formatDateForDisplay(payload.returnAt)}`,
-            pickupLocationId: payload.pickupLocationId,
-            returnLocationId: payload.returnLocationId,
-            pickupLocation: pickupLocationName,
-            returnLocation: returnLocationName,
-          };
-        });
-      });
+            return {
+              ...booking,
+              pickupDate: payload.pickupAt,
+              returnDate: payload.returnAt,
+              rentalPeriod: `${formatDateForDisplay(payload.pickupAt)} - ${formatDateForDisplay(payload.returnAt)}`,
+              pickupLocationId: payload.pickupLocationId,
+              returnLocationId: payload.returnLocationId,
+              pickupLocation: pickupLocationName,
+              returnLocation: returnLocationName,
+            };
+          });
+        },
+      );
       void queryClient.invalidateQueries({
         queryKey: ["myBookings"],
         refetchType: "active",
@@ -728,7 +738,7 @@ export default function MyBookingsPage() {
                                 Pick-up Location
                               </p>
                               <p className="text-sm font-medium">
-                                {booking.pickupLocation}
+                                {getLocationLabel(booking.pickupLocation)}
                               </p>
                             </div>
                           </div>
@@ -742,7 +752,7 @@ export default function MyBookingsPage() {
                                 Return Location
                               </p>
                               <p className="text-sm font-medium">
-                                {booking.returnLocation}
+                                {getLocationLabel(booking.returnLocation)}
                               </p>
                             </div>
                           </div>

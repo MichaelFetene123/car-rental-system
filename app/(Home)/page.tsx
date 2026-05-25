@@ -7,6 +7,7 @@ import { API_BASE_URL } from "@/server/server";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { BackendCar, PublicCar } from "@/app/lib/data";
+import { getLocationLabel } from "@/app/lib/format";
 import {
   getUnavailableBadgeLabel,
   getUnavailableRangeLabel,
@@ -403,7 +404,7 @@ export default function HomePage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4" />
-                          <span>{car.location}</span>
+                          <span>{getLocationLabel(car.location)}</span>
                         </div>
                       </div>
 

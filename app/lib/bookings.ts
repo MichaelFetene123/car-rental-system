@@ -52,7 +52,7 @@ export type BookingConflict = {
   pickupAt: string;
   returnAt: string;
   status: BookingStatus;
-  conflictType: "overlap" | "buffer_violation";
+  conflictType: "overlap";
 };
 
 export type AdminPaymentSummary = {

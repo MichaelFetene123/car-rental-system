@@ -1,17 +1,6 @@
 import { authFetch } from "@/app/lib/auth";
 
-export type AdminUsers = {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  role: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-    totalBookings: number | null;
-};
-
+// table match the backend response shape for easier integration, but we can transform it in the UI layer if needed-> table lay map emideregu nachew
 export type AdminUserMutationResult = {
   id: string;
   name: string;
@@ -24,17 +13,36 @@ export type AdminUserMutationResult = {
   totalBookings: number | null;
 };
 
+// This file contains all the API calls related to managing users in the admin dashboard, including fetching users, creating a new user, updating user details, deleting a user, and assigning roles to a user. It also defines the types for the user data and the expected results from these operations.
 export type userData = {
   id?: string;
-  name: string;
+  full_name: string;
   email: string;
   phone?: string | null;
-  role: "customer" | "admin" | "stuff";
-  status: "active" | "inactive" | "suspended";
+  password?: string;
+};
+
+export type UserRole = string;
+export type UserStatus = "active" | "inactive" | "suspended";
+
+export type RoleOption = {
+  id: string;
+  name: string;
+  type?: string | null;
+};
+
+// useru formulay emiyasgebachewu datawoch
+export type CreateAdminUserPayload = {
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  password: string;
+  status?: UserStatus;
 };
 
 export const publicUsersQueryKey = ["users"] as const;
 export const adminUsersQueryKey = ["adminUsers"] as const;
+export const rolesQueryKey = ["roles"] as const;
 
 const parseErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -47,11 +55,9 @@ const parseErrorMessage = async (response: Response): Promise<string> => {
   return response.statusText || "Request failed";
 };
 
-
-
 export const fetchAdminUsers = async (
   signal?: AbortSignal,
-): Promise<AdminUsers[]> => {
+): Promise<AdminUserMutationResult[]> => {
   const response = await authFetch("/admin/users", {
     method: "GET",
     cache: "no-store",
@@ -71,19 +77,17 @@ export const fetchAdminUsers = async (
     email: u.email,
     phone: u.phone ?? null,
     // backend returns `roles: string[]` — use the first role as the primary `role` for the UI
-    role: (u.role as string) ?? (Array.isArray(u.roles) ? u.roles[0] : "customer"),
+    role: (u.role as string) ?? (Array.isArray(u.roles) ? u.roles[0] : "user"),
     status: u.status,
     createdAt: u.createdAt ?? u.created_at,
     updatedAt: u.updatedAt ?? u.updated_at,
     totalBookings:
       u.totalBookings ?? u.total_bookings ?? u._count?.bookings ?? null,
-  })) as AdminUsers[];
+  })) as AdminUserMutationResult[];
 };
 
-
-
 export const createAdminUser = async (
-  payload: userData,
+  payload: CreateAdminUserPayload,
 ): Promise<AdminUserMutationResult> => {
   const response = await authFetch("/admin/users", {
     method: "POST",
@@ -102,7 +106,7 @@ export const createAdminUser = async (
 
 export const updateAdminUser = async (
   userId: string,
-  payload: Partial<userData>,
+  payload: Partial<CreateAdminUserPayload>,
 ): Promise<AdminUserMutationResult> => {
   const response = await authFetch(`/admin/users/${userId}`, {
     method: "PATCH",
@@ -141,4 +145,20 @@ export const assignRolesToUser = async (
     throw new Error(await parseErrorMessage(response));
   }
   return (await response.json()) as AdminUserMutationResult;
+};
+
+export const fetchRoles = async (
+  signal?: AbortSignal,
+): Promise<RoleOption[]> => {
+  const response = await authFetch("/roles", {
+    method: "GET",
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+
+  return (await response.json()) as RoleOption[];
 };

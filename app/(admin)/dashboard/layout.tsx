@@ -7,7 +7,7 @@ const DashboardLayout = ({ children }: PropsWithChildren) => {
       <div className="w-full md:w-72 ">
         <Sidenav />
       </div>
-      <div className="w-full grow overflow-y-auto p-6 md:p-12">{children}</div>
+      <div className="w-full grow overflow-y-auto p-4 ">{children}</div>
     </div>
   );
 };

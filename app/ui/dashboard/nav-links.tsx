@@ -18,7 +18,7 @@ import {
 
 const Links = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Profile", href: "/dashboard/profile", icon: User },
+ 
   { name: "Manage Cars", href: "/dashboard/manageCars", icon: Car },
   {
     name: "Manage Bookings",

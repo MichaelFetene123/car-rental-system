@@ -538,6 +538,18 @@ export default function MyBookingsPage() {
         throw new Error(await parseErrorMessage(response));
       }
     },
+    onMutate: async (bookingId) => {
+      await queryClient.cancelQueries({ queryKey: myBookingsQueryKey });
+      const previousBookings = queryClient.getQueryData<Booking[]>(
+        myBookingsQueryKey,
+      );
+
+      queryClient.setQueryData<Booking[]>(myBookingsQueryKey, (current = []) =>
+        current.filter((booking) => booking.id !== bookingId),
+      );
+
+      return { previousBookings };
+    },
     onSuccess: (_data, bookingId) => {
       queryClient.setQueryData<Booking[]>(myBookingsQueryKey, (current = []) =>
         current.filter((booking) => booking.id !== bookingId),
@@ -555,7 +567,13 @@ export default function MyBookingsPage() {
       setIsDeleteDialogOpen(false);
       setDeletingBooking(null);
     },
-    onError: (error) => {
+    onError: (error, _bookingId, context) => {
+      if (context?.previousBookings) {
+        queryClient.setQueryData<Booking[]>(
+          myBookingsQueryKey,
+          context.previousBookings,
+        );
+      }
       toast.error(
         `Failed to delete booking. ${error instanceof Error ? error.message : ""}`,
       );
@@ -844,7 +862,7 @@ export default function MyBookingsPage() {
           })}
         </div>
 
-        {!isLoadingBookings && bookings.length === 0 && (
+        {!isLoadingBookings && visibleBookings.length === 0 && (
           <Card className="p-12 text-center">
             <div className="max-w-md mx-auto">
               <BadgeIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />

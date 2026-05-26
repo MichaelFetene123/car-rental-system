@@ -168,6 +168,7 @@ export default function CarDetailPage() {
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const [hasAttemptedBooking, setHasAttemptedBooking] = useState(false);
   const { data: currentUser } = useCurrentUser();
   const userKey =
     currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
@@ -213,7 +214,10 @@ export default function CarDetailPage() {
     },
   });
 
-  const { data: myBookings = [] } = useQuery<MyBooking[], Error>({
+  const { data: myBookings = [], isPending: isLoadingBookings } = useQuery<
+    MyBooking[],
+    Error
+  >({
     queryKey: ["myBookings", userKey],
     queryFn: fetchMyBookings,
     enabled: Boolean(userKey),
@@ -231,12 +235,12 @@ export default function CarDetailPage() {
   useEffect(() => {
     bookingMutation.reset();
     setConflictMessage(null);
+    setHasAttemptedBooking(false);
   }, [pickupDate, returnDate]);
 
-  const hasSameDayBooking = useMemo(() => {
+  const hasBookingOverlap = useMemo(() => {
+    if (isLoadingBookings) return false;
     if (!car || !pickupDateValue || !returnDateValue) return false;
-    const pickupKey = toUtcDayKey(pickupDateValue);
-    const returnKey = toUtcDayKey(returnDateValue);
 
     return myBookings.some((booking) => {
       if (booking.carId !== car.id) return false;
@@ -244,17 +248,12 @@ export default function CarDetailPage() {
         return false;
       }
 
-      const existingPickupKey = toUtcDayKey(new Date(booking.pickupAt));
-      const existingReturnKey = toUtcDayKey(new Date(booking.returnAt));
+      const existingStart = new Date(booking.pickupAt);
+      const existingEnd = new Date(booking.returnAt);
 
-      return (
-        existingPickupKey === pickupKey ||
-        existingReturnKey === pickupKey ||
-        existingPickupKey === returnKey ||
-        existingReturnKey === returnKey
-      );
+      return pickupDateValue <= existingEnd && returnDateValue >= existingStart;
     });
-  }, [car, myBookings, pickupDateValue, returnDateValue]);
+  }, [car, isLoadingBookings, myBookings, pickupDateValue, returnDateValue]);
 
   if (isLoadingCar) {
     return <CarDetailSkeleton />;
@@ -326,6 +325,7 @@ export default function CarDetailPage() {
     if (bookingMutation.isPending) return;
     bookingMutation.reset();
     setConflictMessage(null);
+    setHasAttemptedBooking(true);
 
     if (isSuspendedUser) {
       toast.error("Your account is suspended. Booking is unavailable.");
@@ -342,7 +342,12 @@ export default function CarDetailPage() {
       return;
     }
 
-    if (hasSameDayBooking) {
+    if (isLoadingBookings) {
+      toast.info("Checking availability. Please try again in a moment.");
+      return;
+    }
+
+    if (hasBookingOverlap) {
       toast.error("This car is already booked for the selected day.");
       return;
     }
@@ -557,7 +562,8 @@ export default function CarDetailPage() {
                   bookingMutation.isPending ||
                   isCarUnavailable ||
                   hasDateOverlap ||
-                  hasSameDayBooking ||
+                  hasBookingOverlap ||
+                  isLoadingBookings ||
                   isSuspendedUser
                 }
                 aria-busy={bookingMutation.isPending}
@@ -600,7 +606,9 @@ export default function CarDetailPage() {
                     ? `Unavailable: ${unavailableRange}`
                     : "This car is temporarily unavailable."}
                 </p>
-              ) : hasSameDayBooking ? (
+              ) : hasAttemptedBooking &&
+                !isLoadingBookings &&
+                hasBookingOverlap ? (
                 <p className="mb-3 text-sm text-red-700">
                   This car is already booked for the selected day.
                 </p>

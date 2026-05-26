@@ -145,11 +145,33 @@ export default function AdminProfilePage() {
       toast.error("Email is required");
       return;
     }
-    updateProfileMutation.mutate({
-      full_name: formData.full_name.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim() || null,
-    });
+    const currentName = profile?.full_name ?? profile?.name ?? "";
+    const currentEmail = profile?.email ?? "";
+    const currentPhone = profile?.phone ?? "";
+    const nextName = formData.full_name.trim();
+    const nextEmail = formData.email.trim();
+    const nextPhone = formData.phone.trim();
+
+    const payload: UpdateProfilePayload = {};
+
+    if (nextName && nextName !== currentName) {
+      payload.full_name = nextName;
+    }
+
+    if (nextEmail && nextEmail !== currentEmail) {
+      payload.email = nextEmail;
+    }
+
+    if (nextPhone !== currentPhone) {
+      payload.phone = nextPhone || null;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      toast.info("No changes to update");
+      return;
+    }
+
+    updateProfileMutation.mutate(payload);
   };
 
   const handlePasswordSubmit = (event: React.FormEvent) => {

@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { lusitana } from "@/app/ui/utils/fonts";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
 import { fetchCurrentUser, type CurrentUser } from "@/app/lib/auth";
+import { CheckCircle2, CircleAlert, MinusCircle } from "lucide-react";
 
 import {
   fetchAdminUsers,
@@ -79,7 +80,6 @@ export default function ManageUsers() {
   const [editingUser, setEditingUser] =
     useState<AdminUserMutationResult | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -92,7 +92,6 @@ export default function ManageUsers() {
     let isMounted = true;
 
     const loadCurrentUser = async () => {
-      setIsAuthLoading(true);
       try {
         const user = await fetchCurrentUser();
         if (isMounted) {
@@ -101,15 +100,6 @@ export default function ManageUsers() {
       } catch (error) {
         if (isMounted) {
           setCurrentUser(null);
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Failed to load user profile",
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setIsAuthLoading(false);
         }
       }
     };
@@ -289,6 +279,32 @@ export default function ManageUsers() {
     [adminUsersData],
   );
 
+  const roleStats = useMemo(() => {
+    const userCount = visibleUsers.filter(
+      (user) => user.role === "user",
+    ).length;
+    const staffCount = visibleUsers.filter(
+      (user) => user.role === "stuff",
+    ).length;
+    const activeCount = visibleUsers.filter(
+      (user) => user.status === "active",
+    ).length;
+    const inactiveCount = visibleUsers.filter(
+      (user) => user.status === "inactive",
+    ).length;
+    const suspendedCount = visibleUsers.filter(
+      (user) => user.status === "suspended",
+    ).length;
+
+    return {
+      userCount,
+      staffCount,
+      activeCount,
+      inactiveCount,
+      suspendedCount,
+    };
+  }, [visibleUsers]);
+
   const handleAddUser = () => {
     setEditingUser(null);
     setFormData({
@@ -372,29 +388,6 @@ export default function ManageUsers() {
     });
   };
 
-  if (isAuthLoading) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-sm text-muted-foreground">
-          Loading user access...
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!isAuthorized) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Access restricted</CardTitle>
-          <CardDescription>
-            You do not have permission to manage users.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -403,50 +396,72 @@ export default function ManageUsers() {
           View and manage user and admin accounts
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-blue-50 border-blue-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-blue-800">
-              Total Users
+              Users
             </CardTitle>
           </CardHeader>
           <CardContent className="text-blue-900">
             <div className="text-3xl font-semibold text-blue-900">
-              {visibleUsers.length}
+              {roleStats.userCount}
             </div>
           </CardContent>
         </Card>
         <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-emerald-800">
-              Active Users
+              Staff
             </CardTitle>
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-3xl font-semibold text-emerald-900">
-              {visibleUsers.filter((u) => u.status === "active").length}
+              {roleStats.staffCount}
             </div>
           </CardContent>
         </Card>
         <Card className="bg-amber-50 border-amber-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-amber-800">
-              Admins
+              User Status
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-amber-900">
-            <div className="text-3xl font-semibold text-amber-900">0</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-rose-50 border-rose-100">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-rose-800">
-              Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-rose-900">
-            <div className="text-3xl font-semibold text-rose-900">
-              {visibleUsers.filter((u) => u.role === "user").length}
+          <CardContent className="pt-1 pb-3 text-amber-900">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="flex items-center gap-2 rounded-lg bg-white/80 px-2 py-1 shadow-sm">
+                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                  <CheckCircle2 className="size-4" />
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium leading-none text-amber-800">
+                  Active
+                </p>
+                <Badge className="bg-emerald-100 px-2 py-0.5 text-sm text-emerald-700 hover:bg-emerald-100">
+                  {roleStats.activeCount}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-white/80 px-2 py-1 shadow-sm">
+                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                  <MinusCircle className="size-4" />
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium leading-none text-slate-800">
+                  Inactive
+                </p>
+                <Badge className="bg-slate-100 px-2 py-0.5 text-sm text-slate-700 hover:bg-amber-100">
+                  {roleStats.inactiveCount}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-white/80 px-2 py-1 shadow-sm">
+                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+                  <CircleAlert className="size-4" />
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium leading-none text-amber-800">
+                  Suspended
+                </p>
+                <Badge className="bg-rose-100 px-2 py-0.5 text-sm text-rose-700 hover:bg-rose-100">
+                  {roleStats.suspendedCount}
+                </Badge>
+              </div>
             </div>
           </CardContent>
         </Card>

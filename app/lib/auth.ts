@@ -3,6 +3,11 @@ import { API_BASE_URL } from "@/server/server";
 const TOKEN_STORAGE_KEY = "car_rental_access_token";
 
 export const AUTH_COOKIE_NAME = "car_rental_access_token";
+export const SESSION_EXPIRED_TOAST_KEY = "car_rental_session_expired_message";
+
+export const SESSION_EXPIRED_MESSAGE = "Session expired. Please login again.";
+
+const PUBLIC_PATH_PREFIXES = ["/", "/login", "/signup"];
 
 const TOKEN_COOKIE_TTL_SECONDS = 60 * 60;
 
@@ -194,6 +199,55 @@ const isTokenExpired = (token: string, skewSeconds = 30): boolean => {
   return exp <= now + skewSeconds;
 };
 
+const isPublicPath = (pathname: string): boolean =>
+  PUBLIC_PATH_PREFIXES.some(
+    (publicPath) =>
+      pathname === publicPath || pathname.startsWith(`${publicPath}/`),
+  );
+
+const shouldRedirectToLogin = (): boolean => {
+  if (typeof window === "undefined") return false;
+
+  return !isPublicPath(window.location.pathname);
+};
+
+const queueSessionExpiredToast = () => {
+  if (typeof window === "undefined") return;
+
+  window.sessionStorage.setItem(
+    SESSION_EXPIRED_TOAST_KEY,
+    SESSION_EXPIRED_MESSAGE,
+  );
+};
+
+const handleSessionExpired = () => {
+  clearStoredAuth();
+  queueSessionExpiredToast();
+
+  if (typeof window === "undefined") return;
+
+  if (shouldRedirectToLogin()) {
+    window.location.replace("/login");
+  }
+};
+
+const isSessionRefreshError = (error: unknown): boolean => {
+  const status =
+    error instanceof Error && typeof (error as { status?: number }).status === "number"
+      ? (error as { status?: number }).status
+      : null;
+
+  if (status === 401 || status === 403) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : "";
+
+  return /refresh token|invalid refresh token|token has been revoked|user not found/i.test(
+    message,
+  );
+};
+
 export const refreshAccessToken = async (): Promise<string> => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
@@ -204,7 +258,9 @@ export const refreshAccessToken = async (): Promise<string> => {
       });
 
       if (!response.ok) {
-        throw new Error(await parseErrorMessage(response));
+        const error = new Error(await parseErrorMessage(response));
+        (error as { status?: number }).status = response.status;
+        throw error;
       }
 
       const data = (await response.json()) as AuthResponse;
@@ -232,8 +288,10 @@ export const getValidAccessToken = async (): Promise<string | null> => {
 
   try {
     return await refreshAccessToken();
-  } catch {
-    clearStoredAuth();
+  } catch (error) {
+    if (isSessionRefreshError(error)) {
+      handleSessionExpired();
+    }
     return null;
   }
 };
@@ -302,7 +360,7 @@ export const authFetch = async (
   const token = await getValidAccessToken();
 
   if (!token) {
-    throw new Error("Please log in again.");
+    return new Promise<Response>(() => undefined);
   }
 
   const requestUrl = input.startsWith("http")
@@ -318,11 +376,19 @@ export const authFetch = async (
     credentials: "include",
   });
 
-  if (response.status !== 401 && response.status !== 403) {
+  if (response.status !== 401) {
     return response;
   }
 
-  const refreshedToken = await refreshAccessToken();
+  let refreshedToken: string;
+
+  try {
+    refreshedToken = await refreshAccessToken();
+  } catch {
+    handleSessionExpired();
+    return new Promise<Response>(() => undefined);
+  }
+
   headers.set("Authorization", `Bearer ${refreshedToken}`);
 
   response = await fetch(requestUrl, {
@@ -331,6 +397,11 @@ export const authFetch = async (
     cache: init.cache ?? "no-store",
     credentials: "include",
   });
+
+  if (response.status === 401) {
+    handleSessionExpired();
+    return new Promise<Response>(() => undefined);
+  }
 
   return response;
 };

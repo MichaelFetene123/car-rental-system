@@ -3,6 +3,7 @@
 //   'before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent';
 
 import { TableCell, TableRow } from "@/app/ui/table";
+import { Card, CardContent, CardHeader } from "@/app/ui/card";
 
 type TableSkeletonRowsProps = {
   columns: number;
@@ -235,8 +236,8 @@ export function MyBookingsSkeleton({ count }: { count: number }) {
 
 export function RoleCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white animate-pulse">
-      <div className="p-6">
+    <Card className="animate-pulse">
+      <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-lg bg-gray-200">
@@ -253,24 +254,26 @@ export function RoleCardSkeleton() {
             <div className="size-8 rounded-md bg-gray-200" />
           </div>
         </div>
-      </div>
-      <div className="px-6 pb-6">
-        <div className="h-4 w-32 rounded-md bg-gray-200 mb-3" />
-        <div className="flex flex-wrap gap-2">
-          <div className="h-6 w-20 rounded-full bg-gray-200" />
-          <div className="h-6 w-24 rounded-full bg-gray-200" />
-          <div className="h-6 w-16 rounded-full bg-gray-200" />
-          <div className="h-6 w-28 rounded-full bg-gray-200" />
-          <div className="h-6 w-20 rounded-full bg-gray-200" />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="h-4 w-32 rounded-md bg-gray-200" />
+          <div className="flex flex-wrap gap-2">
+            <div className="h-6 w-20 rounded-full bg-gray-200" />
+            <div className="h-6 w-24 rounded-full bg-gray-200" />
+            <div className="h-6 w-16 rounded-full bg-gray-200" />
+            <div className="h-6 w-28 rounded-full bg-gray-200" />
+            <div className="h-6 w-20 rounded-full bg-gray-200" />
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 export function RoleCardsSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <div className="space-y-6">
+    <div className="grid gap-6">
       {Array.from({ length: count }).map((_, index) => (
         <RoleCardSkeleton key={`role-card-skeleton-${index}`} />
       ))}

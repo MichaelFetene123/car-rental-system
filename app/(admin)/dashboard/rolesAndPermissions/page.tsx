@@ -74,7 +74,6 @@ export default function ManageRoles() {
   });
 
   const loadData = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
 
     try {
@@ -372,7 +371,11 @@ export default function ManageRoles() {
         )}
       </div>
 
-      {error && (
+      {/* Loading skeleton - shows immediately on mount, before auth resolves */}
+      {isLoading && <RoleCardsSkeleton count={3} />}
+
+      {/* Error state */}
+      {!isLoading && error && (
         <Card>
           <CardContent className="py-4 text-sm text-red-600">
             {error}
@@ -380,11 +383,8 @@ export default function ManageRoles() {
         </Card>
       )}
 
-      {/* Loading skeleton - shows immediately on mount, before auth resolves */}
-      {isLoading && <RoleCardsSkeleton count={4} />}
-
-      {/* Post-loading states */}
-      {!isLoading && !isAuthorized && (
+      {/* Access denied */}
+      {!isLoading && !error && !isAuthorized && (
         <Card>
           <CardHeader>
             <CardTitle>Access restricted</CardTitle>
@@ -395,7 +395,8 @@ export default function ManageRoles() {
         </Card>
       )}
 
-      {!isLoading && isAuthorized && (
+      {/* Real content */}
+      {!isLoading && !error && isAuthorized && (
         <div className="grid gap-6">
           {roles.length === 0 && (
             <Card>

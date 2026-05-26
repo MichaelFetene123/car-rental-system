@@ -1,6 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/app/ui/card";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import {
@@ -34,6 +40,7 @@ import { toast } from "sonner";
 // import { User, initialUsers } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
+import { fetchCurrentUser, type CurrentUser } from "@/app/lib/auth";
 
 import {
   fetchAdminUsers,
@@ -56,6 +63,7 @@ const ADMIN_USERS_REFRESH_INTERVAL_MS = 15 * 1000;
 const DEFAULT_VISIBLE_ROWS = 5;
 const TABLE_HEADER_HEIGHT_PX = 52;
 const TABLE_ROW_HEIGHT_PX = 56;
+const MANAGE_USERS_PERMISSION = "manage_users";
 
 type ManagedUser = Omit<AdminUserMutationResult, "role" | "status"> & {
   role: UserRole;
@@ -70,6 +78,8 @@ export default function ManageUsers() {
   const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({});
   const [editingUser, setEditingUser] =
     useState<AdminUserMutationResult | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -77,6 +87,42 @@ export default function ManageUsers() {
     password: "",
     status: "active" as UserStatus,
   });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCurrentUser = async () => {
+      setIsAuthLoading(true);
+      try {
+        const user = await fetchCurrentUser();
+        if (isMounted) {
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setCurrentUser(null);
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to load user profile",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
+      }
+    };
+
+    void loadCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const isAuthorized =
+    currentUser?.permissions?.includes(MANAGE_USERS_PERMISSION) ?? false;
 
   // fatch real user data from backend using react query and our api functions in lib/adminDasboardMangeUsers.ts
 
@@ -87,6 +133,7 @@ export default function ManageUsers() {
   } = useQuery<ManagedUser[], Error>({
     queryKey: adminUsersQueryKey,
     queryFn: async () => (await fetchAdminUsers()) as ManagedUser[],
+    enabled: isAuthorized,
     refetchInterval: ADMIN_USERS_REFRESH_INTERVAL_MS,
     staleTime: 0,
     refetchOnWindowFocus: true,
@@ -98,6 +145,7 @@ export default function ManageUsers() {
   const { data: rolesData } = useQuery({
     queryKey: rolesQueryKey,
     queryFn: ({ signal }) => fetchRoles(signal),
+    enabled: isAuthorized,
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -205,11 +253,16 @@ export default function ManageUsers() {
     const fallbackRoles = adminUsersData?.map((user) => user.role) ?? [];
     const merged = new Set(["user", "stuff", ...roleNames, ...fallbackRoles]);
     merged.delete("admin");
-    return Array.from(merged).sort();
+    return Array.from(merged)
+      .filter(
+        (role): role is string => typeof role === "string" && role.length > 0,
+      )
+      .sort();
   }, [rolesData, adminUsersData]);
 
-  const formatRoleLabel = (role: string) => {
-    if (role === "stuff") return "Staff";
+  const formatRoleLabel = (role?: string) => {
+    if (!role) return "Unknown";
+    if (role === "stuff") return "Stuff";
     return role.charAt(0).toUpperCase() + role.slice(1);
   };
 
@@ -219,16 +272,16 @@ export default function ManageUsers() {
     return adminUsersData
       ?.filter((user) => user.role !== "admin")
       .filter((user) => {
-      const name = (user?.name ?? "").toLowerCase();
-      const email = (user?.email ?? "").toLowerCase();
-      const phoneMatches = (user?.phone ?? "").includes(normalizedQuery);
+        const name = (user?.name ?? "").toLowerCase();
+        const email = (user?.email ?? "").toLowerCase();
+        const phoneMatches = (user?.phone ?? "").includes(normalizedQuery);
 
-      return (
-        name.includes(normalizedQuery) ||
-        email.includes(normalizedQuery) ||
-        phoneMatches
-      );
-    });
+        return (
+          name.includes(normalizedQuery) ||
+          email.includes(normalizedQuery) ||
+          phoneMatches
+        );
+      });
   }, [adminUsersData, searchQuery]);
 
   const visibleUsers = useMemo(
@@ -319,6 +372,29 @@ export default function ManageUsers() {
     });
   };
 
+  if (isAuthLoading) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-sm text-muted-foreground">
+          Loading user access...
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Access restricted</CardTitle>
+          <CardDescription>
+            You do not have permission to manage users.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -359,9 +435,7 @@ export default function ManageUsers() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-amber-900">
-            <div className="text-3xl font-semibold text-amber-900">
-              0
-            </div>
+            <div className="text-3xl font-semibold text-amber-900">0</div>
           </CardContent>
         </Card>
         <Card className="bg-rose-50 border-rose-100">

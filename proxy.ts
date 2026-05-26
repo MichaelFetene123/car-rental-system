@@ -30,7 +30,7 @@ const tokenHasRole = (token: string, role: string): boolean => {
   }
 };
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasToken = Boolean(token);

@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/app/ui/select";
 import { Checkbox } from "@/app/ui/checkbox";
+import { RoleCardsSkeleton } from "@/app/ui/skeletons";
 import { Shield, UserCog, Edit, Trash2, Plus } from "lucide-react";
 import { lusitana } from "@/app/ui/utils/fonts";
 import { toast } from "sonner";
@@ -379,6 +380,10 @@ export default function ManageRoles() {
         </Card>
       )}
 
+      {/* Loading skeleton - shows immediately on mount, before auth resolves */}
+      {isLoading && <RoleCardsSkeleton count={4} />}
+
+      {/* Post-loading states */}
       {!isLoading && !isAuthorized && (
         <Card>
           <CardHeader>
@@ -390,17 +395,9 @@ export default function ManageRoles() {
         </Card>
       )}
 
-      {isAuthorized && (
+      {!isLoading && isAuthorized && (
         <div className="grid gap-6">
-          {isLoading && (
-            <Card>
-              <CardContent className="py-6 text-sm text-muted-foreground">
-                Loading roles and permissions...
-              </CardContent>
-            </Card>
-          )}
-
-          {!isLoading && roles.length === 0 && (
+          {roles.length === 0 && (
             <Card>
               <CardContent className="py-6 text-sm text-muted-foreground">
                 No roles found. Create your first role to get started.

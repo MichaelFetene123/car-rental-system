@@ -233,6 +233,51 @@ export function MyBookingsSkeleton({ count }: { count: number }) {
   );
 }
 
+export function RoleCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white animate-pulse">
+      <div className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-lg bg-gray-200">
+              <div className="size-6" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-5 w-40 rounded-md bg-gray-200" />
+              <div className="h-4 w-16 rounded-md bg-gray-200" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-14 rounded-full bg-gray-200" />
+            <div className="size-8 rounded-md bg-gray-200" />
+            <div className="size-8 rounded-md bg-gray-200" />
+          </div>
+        </div>
+      </div>
+      <div className="px-6 pb-6">
+        <div className="h-4 w-32 rounded-md bg-gray-200 mb-3" />
+        <div className="flex flex-wrap gap-2">
+          <div className="h-6 w-20 rounded-full bg-gray-200" />
+          <div className="h-6 w-24 rounded-full bg-gray-200" />
+          <div className="h-6 w-16 rounded-full bg-gray-200" />
+          <div className="h-6 w-28 rounded-full bg-gray-200" />
+          <div className="h-6 w-20 rounded-full bg-gray-200" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function RoleCardsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-6">
+      {Array.from({ length: count }).map((_, index) => (
+        <RoleCardSkeleton key={`role-card-skeleton-${index}`} />
+      ))}
+    </div>
+  );
+}
+
 export function PaymentBookingsSkeleton({ count }: { count: number }) {
   return (
     <div className="space-y-4 animate-pulse">

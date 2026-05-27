@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const AUTH_COOKIE_NAME = "car_rental_access_token";
 const PUBLIC_ROUTES = new Set(["/", "/login", "/signup"]);
 const ADMIN_ROLE = "admin";
+const STAFF_ROLE = "stuff";
 
 const isSafeInternalPath = (path: string | null): path is string =>
   Boolean(path && path.startsWith("/") && !path.startsWith("//"));
@@ -23,7 +24,11 @@ const tokenHasRole = (token: string, role: string): boolean => {
     };
 
     return (
-      Array.isArray(parsed.roles) && parsed.roles.some((item) => item === role)
+      Array.isArray(parsed.roles) &&
+      parsed.roles.some(
+        (item) =>
+          typeof item === "string" && item.toLowerCase() === role.toLowerCase(),
+      )
     );
   } catch {
     return false;
@@ -35,7 +40,8 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasToken = Boolean(token);
   const isAdmin = token ? tokenHasRole(token, ADMIN_ROLE) : false;
-  const authenticatedRedirectPath = isAdmin ? "/dashboard" : "/cars";
+  const isStaff = token ? tokenHasRole(token, STAFF_ROLE) : false;
+  const authenticatedRedirectPath = isAdmin || isStaff ? "/dashboard" : "/cars";
   const isPublicRoute = PUBLIC_ROUTES.has(pathname);
   const isDashboardRoute =
     pathname === "/dashboard" || pathname.startsWith("/dashboard/");
@@ -44,10 +50,6 @@ export function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(loginUrl);
-  }
-
-  if (token && isDashboardRoute && !isAdmin) {
-    return NextResponse.redirect(new URL("/cars", request.url));
   }
 
   if (

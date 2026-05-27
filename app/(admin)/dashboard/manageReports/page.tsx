@@ -22,10 +22,42 @@ import {
   Legend,
 } from "recharts";
 import { Calendar, DollarSign, TrendingUp, Download } from "lucide-react";
-import { categoryData, dailyData, monthlyData } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
+import { usePermissions } from "@/app/hooks/use-permissions";
+import { Permissions } from "@/app/lib/permissions";
+
+const dailyData = [
+  { date: "2026-05-19", revenue: 4200, bookings: 18, cars: 13 },
+  { date: "2026-05-20", revenue: 5100, bookings: 22, cars: 16 },
+  { date: "2026-05-21", revenue: 3900, bookings: 14, cars: 11 },
+  { date: "2026-05-22", revenue: 6100, bookings: 25, cars: 19 },
+  { date: "2026-05-23", revenue: 6800, bookings: 27, cars: 21 },
+  { date: "2026-05-24", revenue: 7300, bookings: 30, cars: 24 },
+  { date: "2026-05-25", revenue: 5400, bookings: 19, cars: 15 },
+];
+
+const monthlyData = [
+  { month: "Nov", revenue: 32000, bookings: 44, cars: 40 },
+  { month: "Dec", revenue: 38000, bookings: 52, cars: 49 },
+  { month: "Jan", revenue: 46000, bookings: 60, cars: 57 },
+  { month: "Feb", revenue: 41000, bookings: 56, cars: 51 },
+  { month: "Mar", revenue: 54000, bookings: 63, cars: 58 },
+  { month: "Apr", revenue: 50000, bookings: 59, cars: 54 },
+];
+
+const categoryData = [
+  { category: "SUV", revenue: 82000, bookings: 52 },
+  { category: "Sedan", revenue: 64000, bookings: 61 },
+  { category: "Luxury", revenue: 73000, bookings: 29 },
+  { category: "Hatchback", revenue: 26000, bookings: 40 },
+];
 
 export default function Reports() {
+  const { can: canAccess } = usePermissions();
+  const canViewReports = canAccess(Permissions.VIEW_REPORT);
+  const canManageReports = canAccess(Permissions.MANAGE_REPORT);
+  const canAccessReports = canViewReports || canManageReports;
+
   const [reportType, setReportType] = useState<"daily" | "monthly">("daily");
   const [viewType, setViewType] = useState<"revenue" | "bookings" | "cars">(
     "revenue",
@@ -64,17 +96,27 @@ export default function Reports() {
         <Button
           onClick={handleExport}
           className="bg-blue-600 hover:bg-blue-500 text-white"
+          disabled={!canManageReports}
         >
           <Download className="size-4 mr-2" />
           Export Report
         </Button>
       </div>
 
+      {!canAccessReports ? (
+        <Card>
+          <CardContent className="py-5 text-sm text-gray-600">
+            You do not have permission to view report analytics yet. Ask an admin to grant View Report.
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Filter Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select
           value={reportType}
           onValueChange={(value) => setReportType(value as "daily" | "monthly")}
+          disabled={!canAccessReports}
         >
           <SelectTrigger className="w-full sm:w-40 border-gray-300 outline-none">
             <SelectValue />
@@ -89,6 +131,7 @@ export default function Reports() {
           onValueChange={(value) =>
             setViewType(value as "revenue" | "bookings" | "cars")
           }
+          disabled={!canAccessReports}
         >
           <SelectTrigger className="w-full sm:w-40 border-gray-300">
             <SelectValue />

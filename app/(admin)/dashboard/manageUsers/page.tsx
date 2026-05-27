@@ -40,7 +40,12 @@ import { toast } from "sonner";
 // import { User, initialUsers } from "@/app/lib/data";
 import { lusitana } from "@/app/ui/utils/fonts";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
-import { fetchCurrentUser, type CurrentUser } from "@/app/lib/auth";
+import {
+  fetchCurrentUser,
+  isCurrentUserAdmin,
+  type CurrentUser,
+} from "@/app/lib/auth";
+import { can } from "@/app/lib/permissions";
 import { CheckCircle2, CircleAlert, MinusCircle } from "lucide-react";
 
 import {
@@ -112,7 +117,10 @@ export default function ManageUsers() {
   }, []);
 
   const isAuthorized =
-    currentUser?.permissions?.includes(MANAGE_USERS_PERMISSION) ?? false;
+    isCurrentUserAdmin() || can(currentUser, MANAGE_USERS_PERMISSION);
+  const canViewUsers =
+    isCurrentUserAdmin() || can(currentUser, "view_users") || isAuthorized;
+  const canManageUsers = isAuthorized;
 
   // fatch real user data from backend using react query and our api functions in lib/adminDasboardMangeUsers.ts
 
@@ -123,7 +131,7 @@ export default function ManageUsers() {
   } = useQuery<ManagedUser[], Error>({
     queryKey: adminUsersQueryKey,
     queryFn: async () => (await fetchAdminUsers()) as ManagedUser[],
-    enabled: isAuthorized,
+    enabled: canViewUsers,
     refetchInterval: ADMIN_USERS_REFRESH_INTERVAL_MS,
     staleTime: 0,
     refetchOnWindowFocus: true,
@@ -135,7 +143,7 @@ export default function ManageUsers() {
   const { data: rolesData } = useQuery({
     queryKey: rolesQueryKey,
     queryFn: ({ signal }) => fetchRoles(signal),
-    enabled: isAuthorized,
+    enabled: canViewUsers,
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -283,7 +291,7 @@ export default function ManageUsers() {
     const userCount = visibleUsers.filter(
       (user) => user.role === "user",
     ).length;
-    const staffCount = visibleUsers.filter(
+    const stuffCount = visibleUsers.filter(
       (user) => user.role === "stuff",
     ).length;
     const activeCount = visibleUsers.filter(
@@ -298,7 +306,7 @@ export default function ManageUsers() {
 
     return {
       userCount,
-      staffCount,
+      stuffCount,
       activeCount,
       inactiveCount,
       suspendedCount,
@@ -395,6 +403,11 @@ export default function ManageUsers() {
         <p className="text-muted-foreground">
           View and manage user and admin accounts
         </p>
+        {!canManageUsers && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Read-only mode is enabled for your current permissions.
+          </p>
+        )}
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-blue-50 border-blue-100">
@@ -412,12 +425,12 @@ export default function ManageUsers() {
         <Card className="bg-emerald-50 border-emerald-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-emerald-800">
-              Staff
+              Stuff
             </CardTitle>
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-3xl font-semibold text-emerald-900">
-              {roleStats.staffCount}
+              {roleStats.stuffCount}
             </div>
           </CardContent>
         </Card>
@@ -474,6 +487,7 @@ export default function ManageUsers() {
             <Button
               onClick={handleAddUser}
               className="bg-blue-600 hover:bg-blue-500 text-white "
+              disabled={!canManageUsers}
             >
               <Plus className="size-4 mr-2" />
               Add New User
@@ -552,6 +566,7 @@ export default function ManageUsers() {
                       status: value as UserStatus,
                     })
                   }
+                  disabled={!canManageUsers}
                 >
                   <SelectTrigger className="border-gray-500">
                     <SelectValue />
@@ -575,6 +590,7 @@ export default function ManageUsers() {
                 <Button
                   type="submit"
                   className="bg-blue-600 hover:bg-blue-500 text-white"
+                  disabled={!canManageUsers}
                 >
                   {editingUser ? "Update User" : "Add User"}
                 </Button>
@@ -633,6 +649,15 @@ export default function ManageUsers() {
               <TableBody>
                 {isLoadingUsers ? (
                   <TableSkeletonRows columns={8} rows={DEFAULT_VISIBLE_ROWS} />
+                ) : !canViewUsers ? (
+                  <TableRow className="border-gray-300">
+                    <TableCell
+                      colSpan={8}
+                      className="border-b border-gray-200 py-8 text-center text-gray-600"
+                    >
+                      User data is unavailable until view access is assigned.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   filterUsers?.map((user) => (
                     <TableRow key={user.id} className="border-gray-300">
@@ -687,7 +712,8 @@ export default function ManageUsers() {
                               className="bg-blue-600 hover:bg-blue-500 text-white"
                               disabled={
                                 assignRolesMutation.isPending ||
-                                getRoleDraft(user) === user.role
+                                getRoleDraft(user) === user.role ||
+                                !canManageUsers
                               }
                               onClick={() =>
                                 handleAssignRoles(user.id, [getRoleDraft(user)])
@@ -701,6 +727,7 @@ export default function ManageUsers() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEditUser(user)}
+                              disabled={!canManageUsers}
                             >
                               <Edit className="size-4" />
                             </Button>
@@ -708,6 +735,7 @@ export default function ManageUsers() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleDeleteUser(user.id)}
+                              disabled={!canManageUsers}
                             >
                               <Trash2 className="size-4 text-red-600" />
                             </Button>

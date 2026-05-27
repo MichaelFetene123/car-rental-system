@@ -200,7 +200,8 @@ const isTokenExpired = (token: string, skewSeconds = 30): boolean => {
 };
 
 const isPublicPath = (pathname: string): boolean =>
-  PUBLIC_PATH_PREFIXES.some(
+  pathname === "/" ||
+  PUBLIC_PATH_PREFIXES.slice(1).some(
     (publicPath) =>
       pathname === publicPath || pathname.startsWith(`${publicPath}/`),
   );
@@ -226,9 +227,7 @@ const handleSessionExpired = () => {
 
   if (typeof window === "undefined") return;
 
-  if (shouldRedirectToLogin()) {
-    window.location.replace("/login");
-  }
+  window.location.replace("/login");
 };
 
 const isSessionRefreshError = (error: unknown): boolean => {

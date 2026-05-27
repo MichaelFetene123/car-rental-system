@@ -27,6 +27,8 @@ import { TableSkeletonRows } from "@/app/ui/skeletons";
 import { toast } from "sonner";
 import { CarFront, Edit, Plus, Search, Tags, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePermissions } from "@/app/hooks/use-permissions";
+import { Permissions } from "@/app/lib/permissions";
 import {
   ADMIN_CAR_CATEGORIES_QUERY_KEY,
   PUBLIC_CAR_CATEGORIES_QUERY_KEY,
@@ -56,6 +58,10 @@ const formatUpdatedDate = (updatedAt: string): string => {
 
 export default function ManageCategoriesPage() {
   const queryClient = useQueryClient();
+  const { can: canAccess } = usePermissions();
+  const canViewCategories = canAccess(Permissions.VIEW_CATEGORY);
+  const canManageCategories = canAccess(Permissions.MANAGE_CATEGORY);
+  const canAccessCategoryPage = canViewCategories || canManageCategories;
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] =
@@ -70,6 +76,7 @@ export default function ManageCategoriesPage() {
   } = useQuery<AdminCarCategory[], Error>({
     queryKey: ADMIN_CAR_CATEGORIES_QUERY_KEY,
     queryFn: ({ signal }) => fetchAdminCarCategories(signal),
+    enabled: canAccessCategoryPage,
     staleTime: 0,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -239,6 +246,7 @@ export default function ManageCategoriesPage() {
           <Button
             onClick={handleAddCategory}
             className="bg-blue-600 text-white hover:bg-blue-500"
+            disabled={!canManageCategories}
           >
             <Plus className="size-4" />
             Add Category
@@ -361,6 +369,11 @@ export default function ManageCategoriesPage() {
 
         <CardContent className="pt-1 sm:pt-2">
           <div className="rounded-lg bg-white p-4">
+            {!canAccessCategoryPage ? (
+              <div className="mb-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+                You do not have permission to view categories yet. Ask an admin to grant View Category.
+              </div>
+            ) : null}
             {categoriesError ? (
               <p className="mb-4 text-sm text-red-700">
                 Failed to load categories. {categoriesError.message}
@@ -423,7 +436,9 @@ export default function ManageCategoriesPage() {
                             type="button"
                             onClick={() => handleToggleStatus(category.id)}
                             className="rounded-full"
-                            disabled={isMutatingCategory}
+                            disabled={
+                              isMutatingCategory || !canManageCategories
+                            }
                           >
                             <Badge
                               className={
@@ -445,7 +460,9 @@ export default function ManageCategoriesPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEditCategory(category)}
-                              disabled={isMutatingCategory}
+                              disabled={
+                                isMutatingCategory || !canManageCategories
+                              }
                             >
                               <Edit className="size-4" />
                             </Button>
@@ -453,7 +470,9 @@ export default function ManageCategoriesPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleDeleteCategory(category.id)}
-                              disabled={isMutatingCategory}
+                              disabled={
+                                isMutatingCategory || !canManageCategories
+                              }
                             >
                               <Trash2 className="size-4 text-red-600" />
                             </Button>

@@ -3,10 +3,15 @@ import { Search, Car } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { cn } from "./utils/utils";
+import { usePermissions } from "@/app/hooks/use-permissions";
+import { Permissions } from "@/app/lib/permissions";
 
 // todo: remove this page
 
 export default function PublicHeader({ className}: React.ComponentProps<"header">) {
+  const { can: canAccess } = usePermissions();
+  const canViewDashboard = canAccess(Permissions.VIEW_DASHBOARD);
+
   return (
     <header className={cn(`border-b border-gray-200 bg-white sticky top-0 z-50 ${className}`)} >
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
@@ -43,12 +48,14 @@ export default function PublicHeader({ className}: React.ComponentProps<"header"
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
           </div>
-          <Link
-            href="/dashboard"
-            className="hidden sm:block text-sm font-medium text-gray-600 hover:text-gray-900"
-          >
-            Admin
-          </Link>
+          {canViewDashboard ? (
+            <Link
+              href="/dashboard"
+              className="hidden sm:block text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              Dashboard
+            </Link>
+          ) : null}
           <Link href="/login">
             <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-6 shadow-sm shadow-blue-200">
               Login

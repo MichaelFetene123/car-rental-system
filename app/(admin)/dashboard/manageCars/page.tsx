@@ -39,6 +39,8 @@ import { authFetch, clearStoredAuth } from "@/app/lib/auth";
 import { getLocationLabel } from "@/app/lib/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
+import { usePermissions } from "@/app/hooks/use-permissions";
+import { Permissions } from "@/app/lib/permissions";
 import {
   fetchPublicCarCategories,
   PUBLIC_CAR_CATEGORIES_QUERY_KEY,
@@ -175,6 +177,7 @@ type CarTableRowProps = {
   imageSrc: string;
   onEdit: (car: ManageCar) => void;
   onDelete: (id: string) => void;
+  canManageActions?: boolean;
 };
 
 const CarTableRow = memo(function CarTableRow({
@@ -182,6 +185,7 @@ const CarTableRow = memo(function CarTableRow({
   imageSrc,
   onEdit,
   onDelete,
+  canManageActions = false,
 }: CarTableRowProps) {
   return (
     <TableRow className="border-gray-300">
@@ -236,10 +240,20 @@ const CarTableRow = memo(function CarTableRow({
       </TableCell>
       <TableCell className="w-21.5 border-b border-gray-200 px-2 py-2.5 text-right sm:px-3">
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => onEdit(car)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onEdit(car)}
+            disabled={!canManageActions}
+          >
             <Edit className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(car.id)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onDelete(car.id)}
+            disabled={!canManageActions}
+          >
             <Trash2 className="size-4 text-red-600" />
           </Button>
         </div>
@@ -251,6 +265,8 @@ const CarTableRow = memo(function CarTableRow({
 export default function ManageCars() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { can: canAccess } = usePermissions();
+  const canManageCars = canAccess(Permissions.MANAGE_CARS);
   const [cars, setCars] = useState<ManageCar[]>([]);
   const [isLoadingCars, setIsLoadingCars] = useState(true);
   const [carsLoadError, setCarsLoadError] = useState<string | null>(null);
@@ -593,6 +609,7 @@ export default function ManageCars() {
             <Button
               onClick={handleAddCar}
               className="bg-blue-600 hover:bg-blue-500 text-white"
+              disabled={!canManageCars}
             >
               <Plus className="size-4 mr-2" />
               Add New Car
@@ -931,6 +948,7 @@ export default function ManageCars() {
                         imageSrc={carImageSources.get(car.id) ?? ""}
                         onEdit={handleEditCar}
                         onDelete={handleDeleteCar}
+                        canManageActions={canManageCars}
                       />
                     ))
                   )}

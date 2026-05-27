@@ -5,6 +5,8 @@ import { Car, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { useEffect, useState } from "react";
 import { useCurrentUser, useLogoutMutation } from "@/app/lib/auth-queries";
+import { usePermissions } from "@/app/hooks/use-permissions";
+import { Permissions } from "@/app/lib/permissions";
 import {
   getCurrentUserEmail,
   getCurrentUserName,
@@ -19,6 +21,7 @@ export default function CustomerLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { data: currentUser } = useCurrentUser();
+  const { can: canAccess } = usePermissions();
   const logoutMutation = useLogoutMutation();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -33,6 +36,7 @@ export default function CustomerLayout({
   const isAdmin = Boolean(
     currentUser?.roles?.some((role) => role === "admin") ?? fallbackIsAdmin,
   );
+  const canViewDashboard = canAccess(Permissions.VIEW_DASHBOARD);
   const rawUserName =
     currentUser?.full_name ?? (isHydrated ? getCurrentUserName() : undefined);
   const rawUserEmail = currentUser?.email ?? fallbackEmail;
@@ -122,7 +126,7 @@ export default function CustomerLayout({
 
             {/* Actions */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {isAdmin && (
+              {canViewDashboard && (
                 <Button
                   variant="outline"
                   size="sm"

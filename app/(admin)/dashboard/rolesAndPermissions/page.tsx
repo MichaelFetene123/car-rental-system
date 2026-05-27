@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/ui/card";
-import { Badge } from "@/app/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -19,16 +18,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/app/ui/dialog";
+import { Checkbox } from "@/app/ui/checkbox";
 import { Label } from "@/app/ui/lable";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/app/ui/select";
-import { Checkbox } from "@/app/ui/checkbox";
+import { Badge } from "@/app/ui/badge";
 import { RoleCardsSkeleton } from "@/app/ui/skeletons";
+import { CURRENT_USER_QUERY_KEY } from "@/app/lib/auth-queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { Shield, UserCog, Edit, Trash2, Plus } from "lucide-react";
 import { lusitana } from "@/app/ui/utils/fonts";
 import { toast } from "sonner";
@@ -42,6 +44,8 @@ import {
   type Role,
 } from "@/app/lib/roles-permissions";
 import { fetchCurrentUser, type CurrentUser } from "@/app/lib/auth";
+import { isAdmin, can } from "@/app/lib/permissions";
+import { isCurrentUserAdmin } from "@/app/lib/auth";
 
 const ROLE_TYPE_LABELS: Record<Role["type"], string> = {
   admin: "Admin",
@@ -55,7 +59,13 @@ const formatCategory = (value: string) =>
 const MANAGE_ROLES_PERMISSION = "manage_roles";
 const DEFAULT_ROLE_NAMES = new Set(["admin", "stuff", "user"]);
 
+const canManageRoles = (user: CurrentUser | null) =>
+  isCurrentUserAdmin() ||
+  isAdmin(user?.roles) ||
+  can(user, MANAGE_ROLES_PERMISSION);
+
 export default function ManageRoles() {
+  const queryClient = useQueryClient();
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -73,27 +83,25 @@ export default function ManageRoles() {
     permissions: [] as string[],
   });
 
+  const isProtectedRole = (role: Role) => DEFAULT_ROLE_NAMES.has(role.name);
+
   const loadData = useCallback(async () => {
+    setIsLoading(true);
     setError(null);
-
     try {
-      const user = await fetchCurrentUser();
-      setCurrentUser(user);
-
-      if (!user.permissions.includes(MANAGE_ROLES_PERMISSION)) {
-        setIsLoading(false);
-        return;
-      }
-
-      const [rolesData, permissionsData] = await Promise.all([
+      const [rolesData, permsData, currentUserData] = await Promise.all([
         fetchRolesWithPermissions(),
         fetchPermissions(),
+        fetchCurrentUser(),
       ]);
-
-      setRoles(rolesData);
-      setPermissions(permissionsData);
+      setRoles(rolesData || []);
+      setPermissions(permsData || []);
+      setCurrentUser(currentUserData || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data");
+      const message =
+        err instanceof Error ? err.message : "Failed to load data";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -108,13 +116,10 @@ export default function ManageRoles() {
     setFormData({
       name: role.name,
       type: role.type,
-      permissions: role.permissions.map((permission) => permission.id),
+      permissions: role.permissions.map((p) => p.id),
     });
     setIsDialogOpen(true);
   };
-
-  const isProtectedRole = (role: Role) =>
-    DEFAULT_ROLE_NAMES.has(role.name.trim().toLowerCase());
 
   const handleDelete = async (id: string) => {
     const role = roles.find((item) => item.id === id);
@@ -239,8 +244,7 @@ export default function ManageRoles() {
     );
   }, [permissions]);
 
-  const isAuthorized =
-    currentUser?.permissions?.includes(MANAGE_ROLES_PERMISSION) ?? false;
+  const isAuthorized = canManageRoles(currentUser);
 
   return (
     <div className="space-y-6">
@@ -387,9 +391,9 @@ export default function ManageRoles() {
       {!isLoading && !error && !isAuthorized && (
         <Card>
           <CardHeader>
-            <CardTitle>Access restricted</CardTitle>
+            <CardTitle>Read-only mode</CardTitle>
             <CardDescription>
-              You do not have permission to manage roles.
+              Role management actions are disabled for your current permissions.
             </CardDescription>
           </CardHeader>
         </Card>

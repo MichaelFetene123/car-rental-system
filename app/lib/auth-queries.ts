@@ -7,6 +7,8 @@ import {
   logoutUser,
   persistAccessToken,
   registerUser,
+  SESSION_EXPIRED_TOAST_KEY,
+  SESSION_EXPIRED_MESSAGE,
   type CurrentUser,
   type LoginPayload,
   type RegisterPayload,
@@ -30,6 +32,13 @@ export const useCurrentUser = () =>
 
         if (status === 401 || status === 403) {
           clearStoredAuth();
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(
+              SESSION_EXPIRED_TOAST_KEY,
+              SESSION_EXPIRED_MESSAGE,
+            );
+            window.location.replace("/login");
+          }
         }
         throw error;
       }
@@ -38,7 +47,6 @@ export const useCurrentUser = () =>
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
-    initialData: null,
   });
 
 export const useLoginMutation = () => {

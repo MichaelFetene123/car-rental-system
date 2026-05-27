@@ -13,57 +13,124 @@ import {
   MapPin,
   Bell,
   Tags,
-  User,
 } from "lucide-react";
+import { usePermissions } from "@/app/hooks/use-permissions";
+import { Permissions, type PermissionCode } from "@/app/lib/permissions";
 
-const Links = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+const LoadingLinks = Array.from({ length: 10 }, (_, index) => index);
 
-  { name: "Manage Cars", href: "/dashboard/manageCars", icon: Car },
+type NavLink = {
+  name: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  permission?: PermissionCode;
+};
+
+const Links: NavLink[] = [
+  {
+    name: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    permission: Permissions.VIEW_DASHBOARD,
+  },
+  {
+    name: "Manage Cars",
+    href: "/dashboard/manageCars",
+    icon: Car,
+    permission: Permissions.VIEW_CARS,
+  },
   {
     name: "Manage Bookings",
     href: "/dashboard/manageBookings",
     icon: Calendar,
+    permission: Permissions.VIEW_BOOKINGS,
   },
   {
     name: "Manage Categories",
     href: "/dashboard/manageCategories",
     icon: Tags,
+    permission: Permissions.VIEW_CATEGORY,
   },
-  { name: "Manage Users", href: "/dashboard/manageUsers", icon: Users },
+  {
+    name: "Manage Users",
+    href: "/dashboard/manageUsers",
+    icon: Users,
+    permission: Permissions.VIEW_USERS,
+  },
   {
     name: "Roles & Permissions",
     href: "/dashboard/rolesAndPermissions",
     icon: Shield,
+    permission: Permissions.MANAGE_ROLES,
   },
   {
     name: "Payment & Billing",
     href: "/dashboard/managePayments",
     icon: WalletCards,
+    permission: Permissions.VIEW_PAYMENTS,
   },
   {
     name: "Manage Locations",
     href: "/dashboard/manageLocations",
     icon: MapPin,
+    permission: Permissions.MANAGE_LOCATIONS,
   },
-  { name: "Notifications", href: "/dashboard/Notifications", icon: Bell },
-  { name: "Reports", href: "/dashboard/manageReports", icon: FileText },
+  {
+    name: "Notifications",
+    href: "/dashboard/Notifications",
+    icon: Bell,
+    permission: Permissions.MANAGE_NOTIFICATIONS,
+  },
+  {
+    name: "Reports",
+    href: "/dashboard/manageReports",
+    icon: FileText,
+    permission: Permissions.VIEW_REPORT,
+  },
 ];
 
 const NavLinks = () => {
   const pathname = usePathname();
+  const { can, isLoading, isLoaded } = usePermissions();
+
+  if (isLoading || !isLoaded) {
+    return (
+      <>
+        {LoadingLinks.map((index) => (
+          <div
+            key={`nav-link-skeleton-${index}`}
+            className="flex h-11 grow items-center justify-center gap-2 rounded-md p-3 md:flex-none md:justify-start md:p-2 md:px-3"
+          >
+            <div className="h-5 w-5 rounded-md bg-gray-200 animate-pulse" />
+            <div className="hidden h-4 flex-1 max-w-28 rounded-md bg-gray-200 animate-pulse md:block" />
+          </div>
+        ))}
+      </>
+    );
+  }
+
   return (
     <>
       {Links.map((link) => {
         const LinkIcon = link.icon;
+        const isAllowed = link.permission ? can(link.permission) : true;
         return (
           <Link
             key={link.name}
-            href={link.href}
+            href={isAllowed ? link.href : "#"}
+            aria-disabled={!isAllowed}
+            tabIndex={isAllowed ? 0 : -1}
+            onClick={(event) => {
+              if (isAllowed) return;
+              event.preventDefault();
+            }}
             className={clsx(
-              "flex h-11 grow items-center justify-center gap-2 rounded-md p-3 text-sm font-medium hover:bg-sky-100 hover:text-blue-600 md:flex-none md:justify-start md:p-2 md:px-3",
+              "flex h-11 grow items-center justify-center gap-2 rounded-md p-3 text-sm font-medium transition-colors md:flex-none md:justify-start md:p-2 md:px-3",
+              isAllowed
+                ? "hover:bg-sky-100 hover:text-blue-600"
+                : "cursor-not-allowed border border-dashed border-gray-200 bg-gray-50 text-gray-400 opacity-80",
               {
-                "bg-sky-100 text-blue-600": pathname === link.href,
+                "bg-sky-100 text-blue-600": isAllowed && pathname === link.href,
               },
             )}
           >

@@ -305,8 +305,7 @@ export default function ManageRoles() {
                     </SelectTrigger>
                     <SelectContent className="bg-white border-none">
                       <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="stuff">Stuff</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="stuff">Staff</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -437,14 +436,16 @@ export default function ManageRoles() {
                     >
                       {ROLE_TYPE_LABELS[role.type]}
                     </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(role)}
-                      disabled={isSaving}
-                    >
-                      <Edit className="size-4" />
-                    </Button>
+                    {role.name !== 'user' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(role)}
+                        disabled={isSaving}
+                      >
+                        <Edit className="size-4" />
+                      </Button>
+                    )}
                     {!isProtectedRole(role) && (
                       <Button
                         variant="ghost"

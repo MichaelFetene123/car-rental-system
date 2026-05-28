@@ -17,8 +17,6 @@ import {
 import { usePermissions } from "@/app/hooks/use-permissions";
 import { Permissions, type PermissionCode } from "@/app/lib/permissions";
 
-const LoadingLinks = Array.from({ length: 10 }, (_, index) => index);
-
 type NavLink = {
   name: string;
   href: string;
@@ -91,29 +89,33 @@ const Links: NavLink[] = [
 
 const NavLinks = () => {
   const pathname = usePathname();
-  const { can, isLoading, isLoaded } = usePermissions();
-
-  if (isLoading || !isLoaded) {
-    return (
-      <>
-        {LoadingLinks.map((index) => (
-          <div
-            key={`nav-link-skeleton-${index}`}
-            className="flex h-11 grow items-center justify-center gap-2 rounded-md p-3 md:flex-none md:justify-start md:p-2 md:px-3"
-          >
-            <div className="h-5 w-5 rounded-md bg-gray-200 animate-pulse" />
-            <div className="hidden h-4 flex-1 max-w-28 rounded-md bg-gray-200 animate-pulse md:block" />
-          </div>
-        ))}
-      </>
-    );
-  }
+  const { can, isLoaded } = usePermissions();
 
   return (
     <>
       {Links.map((link) => {
         const LinkIcon = link.icon;
         const isAllowed = link.permission ? can(link.permission) : true;
+
+        if (!isLoaded) {
+          return (
+            <Link
+              key={link.name}
+              href={link.href}
+              className={clsx(
+                "flex h-11 grow items-center justify-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sky-100 hover:text-blue-600 md:flex-none md:justify-start md:p-2 md:px-3",
+                {
+                  "bg-sky-100 text-blue-600":
+                    pathname === link.href,
+                },
+              )}
+            >
+              <LinkIcon className="w-5" />
+              <p className="hidden md:block">{link.name}</p>
+            </Link>
+          );
+        }
+
         return (
           <Link
             key={link.name}

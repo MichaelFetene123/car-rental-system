@@ -122,7 +122,7 @@ export default function DashboardContent() {
       ) : null}
 
       <div className="grid gap-4 md:gap-5 md:grid-cols-2">
-        <RevenueChart data={dashboard.revenueOverview} isLoading={isPending} />
+        <RevenueChart data={dashboard?.revenueOverview} isLoading={isPending} />
         <BookingChart data={dashboard.weeklyBookings} isLoading={isPending} />
       </div>
       <div className="grid gap-4 md:gap-5 md:grid-cols-2">

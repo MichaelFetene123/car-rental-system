@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -26,10 +26,9 @@ import {
   getUnavailableRangeLabel,
   isDateRangeUnavailable,
 } from "@/app/lib/availability";
-import { authFetch, getCurrentUserEmail } from "@/app/lib/auth";
+import { authFetch } from "@/app/lib/auth";
 import { CURRENT_USER_QUERY_KEY } from "@/app/lib/auth-queries";
 import { useCurrentUser } from "@/app/lib/auth-queries";
-import type { BookingStatus } from "@/app/lib/status";
 import { API_BASE_URL } from "@/server/server";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,14 +55,6 @@ type CreateBookingPayload = {
   returnLocationId: string;
   pickupAt: string;
   returnAt: string;
-};
-
-type MyBooking = {
-  id: string;
-  carId: string;
-  pickupAt: string;
-  returnAt: string;
-  status: BookingStatus;
 };
 
 const mapBackendCarToPublicCar = (
@@ -135,7 +126,11 @@ const createBooking = async (payload: CreateBookingPayload) => {
   });
 
   if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+    const error = new Error(await parseErrorMessage(response)) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
 
   const responseText = await response.text();
@@ -144,22 +139,6 @@ const createBooking = async (payload: CreateBookingPayload) => {
   return responseText ? JSON.parse(responseText) : null;
 };
 
-const fetchMyBookings = async (): Promise<MyBooking[]> => {
-  const response = await authFetch(`/bookings/me`, {
-    method: "GET",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
-  }
-
-  return (await response.json()) as MyBooking[];
-};
-
-const toUtcDayKey = (date: Date): string =>
-  `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
-
 export default function CarDetailPage() {
   const params = useParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -167,11 +146,7 @@ export default function CarDetailPage() {
   const queryClient = useQueryClient();
   const [pickupDate, setPickupDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
-  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
-  const [hasAttemptedBooking, setHasAttemptedBooking] = useState(false);
   const { data: currentUser } = useCurrentUser();
-  const userKey =
-    currentUser?.sub ?? currentUser?.email ?? getCurrentUserEmail();
 
   const {
     data: car,
@@ -206,23 +181,17 @@ export default function CarDetailPage() {
         error instanceof Error
           ? error.message
           : "Booking failed. Please try again.";
-      if (message.toLowerCase().includes("conflict")) {
-        setConflictMessage(message);
+      const status =
+        error instanceof Error && "status" in error
+          ? (error as Error & { status?: number }).status
+          : undefined;
+
+      if (status === 409) {
+        toast.error(message);
         return;
       }
       toast.error(message);
     },
-  });
-
-  const { data: myBookings = [], isPending: isLoadingBookings } = useQuery<
-    MyBooking[],
-    Error
-  >({
-    queryKey: ["myBookings", userKey],
-    queryFn: fetchMyBookings,
-    enabled: Boolean(userKey),
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000,
   });
 
   const pickupDateValue = pickupDate
@@ -231,29 +200,6 @@ export default function CarDetailPage() {
   const returnDateValue = returnDate
     ? new Date(`${returnDate}T09:00:00.000Z`)
     : null;
-
-  useEffect(() => {
-    bookingMutation.reset();
-    setConflictMessage(null);
-    setHasAttemptedBooking(false);
-  }, [pickupDate, returnDate]);
-
-  const hasBookingOverlap = useMemo(() => {
-    if (isLoadingBookings) return false;
-    if (!car || !pickupDateValue || !returnDateValue) return false;
-
-    return myBookings.some((booking) => {
-      if (booking.carId !== car.id) return false;
-      if (!["pending", "approved", "active"].includes(booking.status)) {
-        return false;
-      }
-
-      const existingStart = new Date(booking.pickupAt);
-      const existingEnd = new Date(booking.returnAt);
-
-      return pickupDateValue <= existingEnd && returnDateValue >= existingStart;
-    });
-  }, [car, isLoadingBookings, myBookings, pickupDateValue, returnDateValue]);
 
   if (isLoadingCar) {
     return <CarDetailSkeleton />;
@@ -324,8 +270,6 @@ export default function CarDetailPage() {
   const handleBookNow = async () => {
     if (bookingMutation.isPending) return;
     bookingMutation.reset();
-    setConflictMessage(null);
-    setHasAttemptedBooking(true);
 
     if (isSuspendedUser) {
       toast.error("Your account is suspended. Booking is unavailable.");
@@ -342,25 +286,12 @@ export default function CarDetailPage() {
       return;
     }
 
-    if (isLoadingBookings) {
-      toast.info("Checking availability. Please try again in a moment.");
-      return;
-    }
-
-    if (hasBookingOverlap) {
-      toast.error("This car is already booked for the selected day.");
-      return;
-    }
-
     if (isCarUnavailable) {
       toast.error("This car is not available for booking right now.");
       return;
     }
 
     if (pickupDateValue && returnDateValue && hasDateOverlap) {
-      setConflictMessage(
-        "Selected dates overlap an unavailable booking window. Please choose different dates.",
-      );
       return;
     }
 
@@ -482,6 +413,7 @@ export default function CarDetailPage() {
               </div>
 
               {/* Features */}
+              
               <div>
                 <h3 className="font-semibold mb-3">Features</h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -562,8 +494,6 @@ export default function CarDetailPage() {
                   bookingMutation.isPending ||
                   isCarUnavailable ||
                   hasDateOverlap ||
-                  hasBookingOverlap ||
-                  isLoadingBookings ||
                   isSuspendedUser
                 }
                 aria-busy={bookingMutation.isPending}
@@ -578,22 +508,6 @@ export default function CarDetailPage() {
                 )}
               </Button>
 
-              {conflictMessage ? (
-                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  <div className="flex items-start justify-between gap-3">
-                    <span>{conflictMessage}</span>
-                    <button
-                      type="button"
-                      onClick={() => setConflictMessage(null)}
-                      className="text-amber-800 hover:text-amber-900"
-                      aria-label="Dismiss conflict message"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
               {bookingMutation.isError ? (
                 <p className="mb-3 text-sm text-red-600">
                   An error occurred: {bookingMutation.error.message}
@@ -605,12 +519,6 @@ export default function CarDetailPage() {
                   {unavailableRange
                     ? `Unavailable: ${unavailableRange}`
                     : "This car is temporarily unavailable."}
-                </p>
-              ) : hasAttemptedBooking &&
-                !isLoadingBookings &&
-                hasBookingOverlap ? (
-                <p className="mb-3 text-sm text-red-700">
-                  This car is already booked for the selected day.
                 </p>
               ) : isSuspendedUser ? (
                 <p className="mb-3 text-sm text-red-700">
@@ -627,10 +535,6 @@ export default function CarDetailPage() {
                   choose another vehicle.
                 </p>
               ) : null}
-
-              {!isCarUnavailable && hasDateOverlap && !conflictMessage
-                ? null
-                : null}
 
               {/* Additional Info */}
               <div className="mt-6 pt-6 border-t border-gray-300 space-y-3 text-sm">

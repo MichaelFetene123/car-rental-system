@@ -132,10 +132,14 @@ export const deleteAdminUser = async (userId: string): Promise<void> => {
   }
 };
 
+export type AssignRolesResponse = {
+  access_token: string;
+};
+
 export const assignRolesToUser = async (
   userId: string,
   roles: string[],
-): Promise<AdminUserMutationResult> => {
+): Promise<AssignRolesResponse> => {
   const response = await authFetch(`/admin/users/${userId}/roles`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -144,7 +148,8 @@ export const assignRolesToUser = async (
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
   }
-  return (await response.json()) as AdminUserMutationResult;
+  const body = (await response.json()) as { access_token?: string };
+  return { access_token: body.access_token ?? "" };
 };
 
 export const fetchRoles = async (

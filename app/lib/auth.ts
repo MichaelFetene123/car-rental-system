@@ -4,8 +4,30 @@ const TOKEN_STORAGE_KEY = "car_rental_access_token";
 
 export const AUTH_COOKIE_NAME = "car_rental_access_token";
 export const SESSION_EXPIRED_TOAST_KEY = "car_rental_session_expired_message";
+const MANUAL_LOGOUT_KEY = "car_rental_manual_logout";
+export const AUTH_STATE_RESET_EVENT = "car-rental-auth-state-reset";
 
 export const SESSION_EXPIRED_MESSAGE = "Session expired. Please login again.";
+
+export const setManualLogoutFlag = () => {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(MANUAL_LOGOUT_KEY, "true");
+};
+
+export const clearManualLogoutFlag = () => {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(MANUAL_LOGOUT_KEY);
+};
+
+export const notifyAuthStateReset = () => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_STATE_RESET_EVENT));
+};
+
+export const isManualLoggingOut = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(MANUAL_LOGOUT_KEY) === "true";
+};
 
 const PUBLIC_PATH_PREFIXES = ["/", "/login", "/signup"];
 
@@ -145,6 +167,8 @@ export const getStoredToken = (): string | null => {
 export const persistAccessToken = (token: string) => {
   if (typeof window === "undefined") return;
 
+  clearManualLogoutFlag();
+
   try {
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
   } catch {
@@ -206,10 +230,40 @@ const isPublicPath = (pathname: string): boolean =>
       pathname === publicPath || pathname.startsWith(`${publicPath}/`),
   );
 
-const shouldRedirectToLogin = (): boolean => {
+export const shouldRedirectToLogin = (): boolean => {
   if (typeof window === "undefined") return false;
 
   return !isPublicPath(window.location.pathname);
+};
+
+export const isPageReload = (): boolean => {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const navEntries =
+      (performance.getEntriesByType("navigation") as
+        | PerformanceNavigationTiming[]
+        | undefined) || [];
+
+    if (navEntries.length > 0) {
+      return navEntries[0].type === "reload";
+    }
+
+    // Fallback for older browsers
+    // @ts-ignore
+    if (
+      (performance as any).navigation &&
+      (performance as any).navigation.type
+    ) {
+      // 1 === TYPE_RELOAD
+      // @ts-ignore
+      return (performance as any).navigation.type === 1;
+    }
+  } catch {
+    // ignore
+  }
+
+  return false;
 };
 
 const queueSessionExpiredToast = () => {
@@ -223,16 +277,27 @@ const queueSessionExpiredToast = () => {
 
 const handleSessionExpired = () => {
   clearStoredAuth();
-  queueSessionExpiredToast();
+  notifyAuthStateReset();
+  const pageReload = isPageReload();
+
+  if (!isManualLoggingOut() && !pageReload) {
+    queueSessionExpiredToast();
+  }
+
+  // Always clear manual logout flag after handling expiration.
+  clearManualLogoutFlag();
 
   if (typeof window === "undefined") return;
 
-  window.location.replace("/login");
+  if (shouldRedirectToLogin()) {
+    window.location.replace("/login");
+  }
 };
 
 const isSessionRefreshError = (error: unknown): boolean => {
   const status =
-    error instanceof Error && typeof (error as { status?: number }).status === "number"
+    error instanceof Error &&
+    typeof (error as { status?: number }).status === "number"
       ? (error as { status?: number }).status
       : null;
 
@@ -438,7 +503,9 @@ export const getCurrentUserName = (): string | null => {
 };
 
 export const logoutUser = async () => {
-  const token = await getValidAccessToken();
+  setManualLogoutFlag();
+
+  const token = getStoredToken();
 
   if (!token) {
     clearStoredAuth();
@@ -456,5 +523,6 @@ export const logoutUser = async () => {
     // Always clear local auth, even when token is expired/revoked.
   } finally {
     clearStoredAuth();
+    notifyAuthStateReset();
   }
 };

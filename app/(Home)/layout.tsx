@@ -4,10 +4,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Car, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { useEffect, useState } from "react";
-import { useCurrentUser, useLogoutMutation } from "@/app/lib/auth-queries";
+import { useCurrentUser } from "@/app/lib/auth-queries";
 import { usePermissions } from "@/app/hooks/use-permissions";
 import { Permissions } from "@/app/lib/permissions";
 import {
+  logoutUser,
   getCurrentUserEmail,
   getCurrentUserName,
   isCurrentUserAdmin,
@@ -22,7 +23,6 @@ export default function CustomerLayout({
   const router = useRouter();
   const { data: currentUser } = useCurrentUser();
   const { can: canAccess } = usePermissions();
-  const logoutMutation = useLogoutMutation();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -58,10 +58,11 @@ export default function CustomerLayout({
     if (isSigningOut) return;
 
     setIsSigningOut(true);
-    await logoutMutation.mutateAsync();
+
+    await logoutUser();
+    router.replace("/");
+
     setIsSigningOut(false);
-    router.push("/");
-    router.refresh();
   };
 
   return (

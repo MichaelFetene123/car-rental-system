@@ -22,9 +22,11 @@ const Sidenav = () => {
     if (isSigningOut) return;
 
     setIsSigningOut(true);
+
     await logoutUser();
+    router.replace("/");
+
     setIsSigningOut(false);
-    router.push("/");
   };
 
   const handleProfile = () => {

@@ -3,19 +3,39 @@
 import {
   clearStoredAuth,
   fetchCurrentUser,
+  isManualLoggingOut,
+  shouldRedirectToLogin,
+  isPageReload,
   loginUser,
   logoutUser,
   persistAccessToken,
   registerUser,
+  notifyAuthStateReset,
   SESSION_EXPIRED_TOAST_KEY,
   SESSION_EXPIRED_MESSAGE,
   type CurrentUser,
   type LoginPayload,
   type RegisterPayload,
 } from "@/app/lib/auth";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 export const CURRENT_USER_QUERY_KEY = ["currentUser"] as const;
+
+export const clearAuthQueryState = (queryClient: QueryClient) => {
+  queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null);
+  queryClient.removeQueries({ queryKey: ["myBookings"] });
+  queryClient.removeQueries({ queryKey: ["paymentBookings"] });
+  queryClient.removeQueries({ queryKey: ["adminProfile"] });
+  queryClient.removeQueries({ queryKey: ["adminUsers"] });
+  queryClient.removeQueries({ queryKey: ["roles"] });
+  queryClient.removeQueries({ queryKey: ["users"] });
+  queryClient.removeQueries({ queryKey: ["dashboard"] });
+};
 
 export const useCurrentUser = () =>
   useQuery<CurrentUser | null, Error>({
@@ -32,12 +52,21 @@ export const useCurrentUser = () =>
 
         if (status === 401 || status === 403) {
           clearStoredAuth();
+          notifyAuthStateReset();
           if (typeof window !== "undefined") {
-            window.sessionStorage.setItem(
-              SESSION_EXPIRED_TOAST_KEY,
-              SESSION_EXPIRED_MESSAGE,
-            );
-            window.location.replace("/login");
+            const pageReload = isPageReload();
+
+            if (!isManualLoggingOut() && !pageReload && shouldRedirectToLogin()) {
+              // Only queue the toast when the session expired automatically (not manual logout/login or page reload)
+              window.sessionStorage.setItem(
+                SESSION_EXPIRED_TOAST_KEY,
+                SESSION_EXPIRED_MESSAGE,
+              );
+            }
+
+            if (shouldRedirectToLogin()) {
+              window.location.replace("/login");
+            }
           }
         }
         throw error;
@@ -75,10 +104,7 @@ export const useLogoutMutation = () => {
   return useMutation({
     mutationFn: () => logoutUser(),
     onSuccess: () => {
-      queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null);
-      queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
-      queryClient.removeQueries({ queryKey: ["myBookings"] });
-      queryClient.removeQueries({ queryKey: ["paymentBookings"] });
+      clearAuthQueryState(queryClient);
     },
   });
 };

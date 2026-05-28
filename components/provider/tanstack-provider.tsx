@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { getValidAccessToken } from "@/app/lib/auth";
+import { AUTH_STATE_RESET_EVENT, getValidAccessToken } from "@/app/lib/auth";
+import { clearAuthQueryState } from "@/app/lib/auth-queries";
 
 interface TanstackProviderProps {
   children: React.ReactNode;
@@ -16,12 +17,26 @@ export function TanstackProvider({ children }: TanstackProviderProps) {
 
   useEffect(() => {
     const isPublicPath =
-      pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/signup");
+      pathname === "/" ||
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/signup");
 
     if (isPublicPath) return;
 
     void getValidAccessToken();
   }, [pathname]);
+
+  useEffect(() => {
+    const handleAuthStateReset = () => {
+      clearAuthQueryState(queryClient);
+    };
+
+    window.addEventListener(AUTH_STATE_RESET_EVENT, handleAuthStateReset);
+
+    return () => {
+      window.removeEventListener(AUTH_STATE_RESET_EVENT, handleAuthStateReset);
+    };
+  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

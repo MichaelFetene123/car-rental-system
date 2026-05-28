@@ -8,17 +8,23 @@ import { Permissions } from "@/app/lib/permissions";
 
 // todo: remove this page
 
-export default function PublicHeader({ className}: React.ComponentProps<"header">) {
+export default function PublicHeader({
+  className,
+}: React.ComponentProps<"header">) {
   const { can: canAccess } = usePermissions();
   const canViewDashboard = canAccess(Permissions.VIEW_DASHBOARD);
 
   return (
-    <header className={cn(`border-b border-gray-200 bg-white sticky top-0 z-50 ${className}`)} >
+    <header
+      className={cn(
+        `border-b border-gray-200 bg-white sticky top-0 z-50 ${className}`,
+      )}
+    >
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <div className="text-blue-600">
-           <img src="/carIcon.png" alt="Car Icon" className="w-9 h-9" />
+            <img src="/carIcon.png" alt="Car Icon" className="w-9 h-9" />
           </div>
           <span className="text-3xl font-bold text-gray-900 tracking-tight">
             CarR

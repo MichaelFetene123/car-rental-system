@@ -35,7 +35,7 @@ import { Plus, Edit, Trash2, Search, Upload } from "lucide-react";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/server/server";
-import { authFetch, clearStoredAuth } from "@/app/lib/auth";
+import { authFetch, clearStoredAuth, isManualLoggingOut } from "@/app/lib/auth";
 import { getLocationLabel } from "@/app/lib/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
@@ -283,7 +283,9 @@ export default function ManageCars() {
 
   const handleAuthExpired = useCallback(() => {
     clearStoredAuth();
-    toast.error("Session expired. Please log in again.");
+    if (!isManualLoggingOut()) {
+      toast.error("Session expired. Please log in again.");
+    }
     router.replace("/login");
   }, [router]);
 

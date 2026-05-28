@@ -338,7 +338,7 @@ export default function HomePage() {
                 visibleCars.map((car) => (
                   <Card
                     key={car.id}
-                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                    className="overflow-hidden shadow-2xl hover:shadow-lg transition-shadow cursor-pointer group"
                     onClick={() => router.push(`/cars/${car.id}`)}
                   >
                     <div className="relative">

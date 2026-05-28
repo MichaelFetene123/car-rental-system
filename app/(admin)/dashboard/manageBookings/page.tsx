@@ -76,7 +76,7 @@ import { Textarea } from "@/app/ui/textarea";
 import { Switch } from "@/app/ui/switch";
 import { TableSkeletonRows } from "@/app/ui/skeletons";
 import { broadcastBookingSync } from "@/app/lib/booking-sync";
-import { clearStoredAuth } from "@/app/lib/auth";
+import { clearStoredAuth, isManualLoggingOut } from "@/app/lib/auth";
 
 const DEFAULT_VISIBLE_ROWS = 6;
 const TABLE_HEADER_HEIGHT_PX = 52;
@@ -122,7 +122,9 @@ const ManageBookingsPage = () => {
 
   const handleAuthExpired = useCallback(() => {
     clearStoredAuth();
-    toast.error("Session expired. Please log in again.");
+    if (!isManualLoggingOut()) {
+      toast.error("Session expired. Please log in again.");
+    }
     router.replace("/login");
   }, [router]);
 

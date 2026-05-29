@@ -2,14 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/ui/card";
-import { Badge } from "@/app/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/app/ui/dialog";
 import { Label } from "@/app/ui/lable";
 import {
@@ -38,127 +30,105 @@ import {
   AlertCircle,
   Download,
   Eye,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableScrollArea,
 } from "@/app/ui/table";
 import { lusitana } from "@/app/ui/utils/fonts";
-
-interface Payment {
-  id: string;
-  bookingId: string;
-  customerName: string;
-  amount: number;
-  method: "credit_card" | "mobile_money" | "cash";
-  status: "pending" | "completed" | "refunded" | "failed";
-  transactionId: string;
-  date: string;
-  invoiceNumber: string;
-  tax: number;
-  fees: number;
-}
-
-const mockPayments: Payment[] = [
-  {
-    id: "1",
-    bookingId: "BK-2024-001",
-    customerName: "John Doe",
-    amount: 450,
-    method: "credit_card",
-    status: "completed",
-    transactionId: "TXN-001234",
-    date: "2024-02-20",
-    invoiceNumber: "INV-001",
-    tax: 45,
-    fees: 0,
-  },
-  {
-    id: "2",
-    bookingId: "BK-2024-002",
-    customerName: "Jane Smith",
-    amount: 680,
-    method: "mobile_money",
-    status: "completed",
-    transactionId: "TXN-001235",
-    date: "2024-02-21",
-    invoiceNumber: "INV-002",
-    tax: 68,
-    fees: 20,
-  },
-  {
-    id: "3",
-    bookingId: "BK-2024-003",
-    customerName: "Mike Johnson",
-    amount: 320,
-    method: "cash",
-    status: "pending",
-    transactionId: "TXN-001236",
-    date: "2024-02-22",
-    invoiceNumber: "INV-003",
-    tax: 32,
-    fees: 0,
-  },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { TableSkeletonRows } from "@/app/ui/skeletons";
+import { PaymentStatusBadge } from "@/app/ui/status-badges";
+import {
+  fetchAdminPayments,
+  computePaymentStats,
+  updatePaymentStatus,
+  PAYMENTS_QUERY_KEY,
+  type AdminPayment,
+  type PaymentStatus,
+} from "@/app/lib/payments-api";
+import { PAYMENT_STATUS_ORDER, paymentStatusLabels } from "@/app/lib/status";
 
 export default function ManagePayments() {
-  const [payments, setPayments] = useState<Payment[]>(mockPayments);
-  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [refundAmount, setRefundAmount] = useState("");
-  const [refundReason, setRefundReason] = useState("");
+  const queryClient = useQueryClient();
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<AdminPayment | null>(
+    null,
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterMethod, setFilterMethod] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const filteredPayments = payments.filter((payment) => {
-    const matchesSearch =
-      payment.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.bookingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      filterStatus === "all" || payment.status === filterStatus;
-    const matchesMethod =
-      filterMethod === "all" || payment.method === filterMethod;
-    return matchesSearch && matchesStatus && matchesMethod;
+  const {
+    data: paymentsData,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: [
+      ...PAYMENTS_QUERY_KEY,
+      { page, search: searchTerm, status: filterStatus, method: filterMethod },
+    ],
+    queryFn: ({ signal }) =>
+      fetchAdminPayments(
+        {
+          page,
+          limit: pageSize,
+          search: searchTerm || undefined,
+          status: filterStatus !== "all" ? filterStatus : undefined,
+          method: filterMethod !== "all" ? filterMethod : undefined,
+        },
+        signal,
+      ),
   });
 
-  const handleRefund = () => {
-    if (selectedPayment) {
-      setPayments(
-        payments.map((payment) =>
-          payment.id === selectedPayment.id
-            ? { ...payment, status: "refunded" as const }
-            : payment,
-        ),
-      );
-      setIsRefundDialogOpen(false);
-      setSelectedPayment(null);
-      setRefundAmount("");
-      setRefundReason("");
-    }
+  const payments = paymentsData?.data ?? [];
+  const meta = paymentsData?.meta;
+  const stats = computePaymentStats(payments);
+  const shouldScrollTableBody = payments.length > 5;
+
+  // Refunds are handled from the booking page; no client refund action here.
+
+  const statusMutation = useMutation({
+    mutationFn: ({
+      id,
+      status,
+      notes,
+    }: {
+      id: string;
+      status: PaymentStatus;
+      notes?: string;
+    }) => updatePaymentStatus(id, { status, notes }),
+    onSuccess: () => {
+      toast.success("Payment status updated");
+      queryClient.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Status update failed");
+    },
+  });
+
+  // No-op: refunds handled elsewhere
+
+  const handleStatusChange = (
+    payment: AdminPayment,
+    newStatus: PaymentStatus,
+  ) => {
+    statusMutation.mutate({ id: payment.id, status: newStatus });
   };
 
-  const getStatusColor = (status: Payment["status"]) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "refunded":
-        return "bg-blue-100 text-blue-800";
-      case "failed":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  const totalPages = meta?.totalPages ?? 1;
 
-  const getMethodIcon = (method: Payment["method"]) => {
+  const getMethodIcon = (method: string) => {
     switch (method) {
       case "credit_card":
         return <CreditCard className="size-4" />;
@@ -166,18 +136,13 @@ export default function ManagePayments() {
         return <Smartphone className="size-4" />;
       case "cash":
         return <Banknote className="size-4" />;
+      default:
+        return <CreditCard className="size-4" />;
     }
   };
 
-  const totalRevenue = payments
-    .filter((p) => p.status === "completed")
-    .reduce((sum, p) => sum + p.amount, 0);
-  const pendingAmount = payments
-    .filter((p) => p.status === "pending")
-    .reduce((sum, p) => sum + p.amount, 0);
-  const refundedAmount = payments
-    .filter((p) => p.status === "refunded")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const formatETB = (amount: number) =>
+    `ETB ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6">
@@ -201,7 +166,7 @@ export default function ManagePayments() {
           </CardHeader>
           <CardContent className="text-blue-900">
             <div className="text-2xl font-bold text-blue-900">
-              ${totalRevenue.toLocaleString()}
+              {formatETB(stats.totalRevenue)}
             </div>
             <p className="text-xs text-blue-700">Completed payments</p>
           </CardContent>
@@ -215,7 +180,7 @@ export default function ManagePayments() {
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-2xl font-bold text-emerald-900">
-              ${pendingAmount.toLocaleString()}
+              {formatETB(stats.pendingAmount)}
             </div>
             <p className="text-xs text-emerald-700">Awaiting payment</p>
           </CardContent>
@@ -229,7 +194,7 @@ export default function ManagePayments() {
           </CardHeader>
           <CardContent className="text-amber-900">
             <div className="text-2xl font-bold text-amber-900">
-              ${refundedAmount.toLocaleString()}
+              {formatETB(stats.refundedAmount)}
             </div>
             <p className="text-xs text-amber-700">Total refunds</p>
           </CardContent>
@@ -243,7 +208,7 @@ export default function ManagePayments() {
           </CardHeader>
           <CardContent className="text-rose-900">
             <div className="text-2xl font-bold text-rose-900">
-              {payments.length}
+              {meta?.total ?? payments.length}
             </div>
             <p className="text-xs text-rose-700">All time</p>
           </CardContent>
@@ -260,23 +225,39 @@ export default function ManagePayments() {
             <Input
               placeholder="Search by customer, booking, or invoice..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
               className="md:w-96 bg-sky-100 border-none"
             />
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <Select
+              value={filterStatus}
+              onValueChange={(v) => {
+                setFilterStatus(v);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="md:w-48 border-gray-300 bg-sky-100">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent className="border-none bg-white">
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="refunded">Refunded</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
+                {PAYMENT_STATUS_ORDER.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {paymentStatusLabels[status]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Select value={filterMethod} onValueChange={setFilterMethod}>
-              <SelectTrigger className="md:w-48 border-gray-300 bg-sky-100 ">
+            <Select
+              value={filterMethod}
+              onValueChange={(v) => {
+                setFilterMethod(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="md:w-48 border-gray-300 bg-sky-100">
                 <SelectValue placeholder="Filter by method" />
               </SelectTrigger>
               <SelectContent className="border-none bg-white">
@@ -284,143 +265,285 @@ export default function ManagePayments() {
                 <SelectItem value="credit_card">Credit Card</SelectItem>
                 <SelectItem value="mobile_money">Mobile Money</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="chapa">Chapa</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="border rounded-lg border-gray-300">
-            <Table className="">
-              <TableHeader>
+          <TableScrollArea
+            className={`rounded bg-white ${
+              shouldScrollTableBody
+                ? "max-h-82 overflow-y-auto"
+                : "max-h-none overflow-visible"
+            }`}
+          >
+            <table className="w-full min-w-175 caption-bottom text-sm">
+              <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-white">
                 <TableRow className="border-gray-300">
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Tax/Fees</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Invoice
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Booking
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Customer
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Method
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Amount
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Tax/Fees
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Status
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Date
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-30 bg-white border-b border-gray-200 text-center shadow-[inset_0_-1px_0_0_#d1d5db]">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPayments.map((payment) => (
-                  <TableRow key={payment.id} className="border-gray-300">
-                    <TableCell className="font-medium">
-                      {payment.invoiceNumber}
-                    </TableCell>
-                    <TableCell>{payment.bookingId}</TableCell>
-                    <TableCell>{payment.customerName}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getMethodIcon(payment.method)}
-                        <span className="capitalize">
-                          {payment.method.replace("_", " ")}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-semibold">
-                      ${payment.amount.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      ${(payment.tax + payment.fees).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={getStatusColor(payment.status)}
-                        variant="secondary"
+                  {isLoading ? (
+                    <TableSkeletonRows columns={9} rows={5} />
+                  ) : isError ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="text-center py-8 text-red-600"
                       >
-                        {payment.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{payment.date}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="View Details"
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Download Invoice"
-                        >
-                          <Download className="size-4" />
-                        </Button>
-                        {payment.status === "completed" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Process Refund"
-                            onClick={() => {
-                              setSelectedPayment(payment);
-                              setRefundAmount(payment.amount.toString());
-                              setIsRefundDialogOpen(true);
-                            }}
-                          >
-                            <RefreshCw className="size-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                        Failed to load payments:{" "}
+                        {error instanceof Error
+                          ? error.message
+                          : "Unknown error"}
+                      </TableCell>
+                    </TableRow>
+                  ) : payments.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        No payments found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    payments.map((payment) => (
+                      <TableRow key={payment.id} className="border-gray-300">
+                        <TableCell className="font-medium">
+                          {payment.invoiceNumber}
+                        </TableCell>
+                        <TableCell>{payment.bookingCode}</TableCell>
+                        <TableCell>{payment.customerName}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getMethodIcon(payment.method)}
+                            <span className="capitalize">
+                              {payment.method.replace("_", " ")}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {formatETB(payment.amount)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatETB(payment.tax + payment.fees)}
+                        </TableCell>
+                        <TableCell>
+                          <PaymentStatusBadge status={payment.status} />
+                        </TableCell>
+                        <TableCell>
+                          {payment.paidAt
+                            ? new Date(payment.paidAt).toLocaleDateString()
+                            : new Date(payment.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="View Details"
+                              disabled={statusMutation.isPending}
+                              onClick={() => {
+                                setSelectedPayment(payment);
+                                setIsDetailDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Download Invoice"
+                              disabled={statusMutation.isPending}
+                              onClick={() => {
+                                // Create a simple HTML invoice and download as file
+                                const invoiceHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${payment.invoiceNumber}</title></head><body><h1>Invoice: ${payment.invoiceNumber}</h1><p><strong>Booking:</strong> ${payment.bookingCode}</p><p><strong>Customer:</strong> ${payment.customerName} &lt;${payment.customerEmail}&gt;</p><p><strong>Amount:</strong> ${formatETB(payment.amount)}</p><p><strong>Tax:</strong> ${formatETB(payment.tax)}</p><p><strong>Fees:</strong> ${formatETB(payment.fees)}</p><p><strong>Paid At:</strong> ${payment.paidAt ?? payment.createdAt}</p><p><strong>Method:</strong> ${payment.method}</p><p><strong>Status:</strong> ${payment.status}</p></body></html>`;
+                                const blob = new Blob([invoiceHtml], {
+                                  type: "text/html",
+                                });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `${payment.invoiceNumber}.html`;
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                                URL.revokeObjectURL(url);
+                              }}
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                            {/* Refund action removed — handled in booking page */}
+                            {payment.status === "pending" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Mark as Completed"
+                                disabled={statusMutation.isPending}
+                                onClick={() =>
+                                  handleStatusChange(payment, "completed")
+                                }
+                              >
+                                <DollarSign className="size-4" />
+                              </Button>
+                            )}
+                            {/* Delete action removed — handled in booking page */}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </table>
+            </TableScrollArea>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+                {meta && ` (${meta.total} total)`}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="size-4 mr-1" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                  <ChevronRight className="size-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Refund Dialog */}
-      <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
-        <DialogContent className="bg-white border-none">
+      {/* Refunds are handled on the booking page; UI removed here. */}
+
+      {/* Details Dialog */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="bg-white border-none max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Process Refund</DialogTitle>
+            <DialogTitle>Payment Details</DialogTitle>
             <DialogDescription>
-              Issue a refund for payment {selectedPayment?.invoiceNumber}
+              Details for invoice {selectedPayment?.invoiceNumber}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Refund Amount</Label>
-              <Input
-                type="number"
-                value={refundAmount}
-                onChange={(e) => setRefundAmount(e.target.value)}
-                placeholder="Enter refund amount"
-                className="border-gray-300 focus:border-gray-700"
-              />
-              <p className="text-xs text-muted-foreground">
-                Original amount: ${selectedPayment?.amount.toFixed(2)}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Reason for Refund</Label>
-              <Textarea
-                value={refundReason}
-                onChange={(e) => setRefundReason(e.target.value)}
-                placeholder="Enter the reason for this refund..."
-                rows={3}
-                className="border-gray-300 focus:border-gray-700"
-              />
-            </div>
+          <div className="py-2 space-y-3">
+            {selectedPayment ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Invoice</p>
+                  <div className="font-medium">
+                    {selectedPayment.invoiceNumber}
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mt-2">Booking</p>
+                  <div className="font-medium">
+                    {selectedPayment.bookingCode}
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mt-2">Customer</p>
+                  <div className="font-medium">
+                    {selectedPayment.customerName}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {selectedPayment.customerEmail}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Payment</p>
+                  <div className="font-medium">
+                    {formatETB(selectedPayment.amount)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Tax: {formatETB(selectedPayment.tax)} • Fees:{" "}
+                    {formatETB(selectedPayment.fees)}
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mt-2">Status</p>
+                  <PaymentStatusBadge status={selectedPayment.status} />
+
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Transaction
+                  </p>
+                  <div className="font-medium">
+                    {selectedPayment.transactionId ?? "—"}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">Notes</p>
+                  <div className="whitespace-pre-wrap">
+                    {selectedPayment.notes ?? "No notes"}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>No payment selected</div>
+            )}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsRefundDialogOpen(false)}
-              className="border-gray-300 hover:border-gray-700"
+              onClick={() => setIsDetailDialogOpen(false)}
             >
-              Cancel
+              Close
             </Button>
             <Button
-              onClick={handleRefund}
+              onClick={() => {
+                if (!selectedPayment) return;
+                const invoiceHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${selectedPayment.invoiceNumber}</title></head><body><h1>Invoice: ${selectedPayment.invoiceNumber}</h1><p><strong>Booking:</strong> ${selectedPayment.bookingCode}</p><p><strong>Customer:</strong> ${selectedPayment.customerName} &lt;${selectedPayment.customerEmail}&gt;</p><p><strong>Amount:</strong> ${formatETB(selectedPayment.amount)}</p><p><strong>Tax:</strong> ${formatETB(selectedPayment.tax)}</p><p><strong>Fees:</strong> ${formatETB(selectedPayment.fees)}</p><p><strong>Paid At:</strong> ${selectedPayment.paidAt ?? selectedPayment.createdAt}</p><p><strong>Method:</strong> ${selectedPayment.method}</p><p><strong>Status:</strong> ${selectedPayment.status}</p></body></html>`;
+                const blob = new Blob([invoiceHtml], { type: "text/html" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${selectedPayment.invoiceNumber}.html`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+              }}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              Process Refund
+              Download Invoice
             </Button>
           </DialogFooter>
         </DialogContent>

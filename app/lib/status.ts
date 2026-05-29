@@ -44,6 +44,18 @@ export const paymentStatusLabels: Record<PaymentStatus, string> = {
   expired: "Payment Expired",
 };
 
+export const PAYMENT_STATUS_ORDER: PaymentStatus[] = [
+  "pending",
+  "completed",
+  "refund_initiated",
+  "refund_processing",
+  "partially_refunded",
+  "refunded",
+  "refund_reversed",
+  "failed",
+  "expired",
+];
+
 export const carStatusLabels: Record<CarStatus, string> = {
   available: "Available",
   rented: "Rented",

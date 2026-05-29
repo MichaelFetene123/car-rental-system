@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/ui/card";
@@ -30,8 +30,6 @@ import {
   AlertCircle,
   Download,
   Eye,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import {
   TableBody,
@@ -65,8 +63,6 @@ export default function ManagePayments() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterMethod, setFilterMethod] = useState("all");
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
 
   const {
     data: paymentsData,
@@ -76,13 +72,11 @@ export default function ManagePayments() {
   } = useQuery({
     queryKey: [
       ...PAYMENTS_QUERY_KEY,
-      { page, search: searchTerm, status: filterStatus, method: filterMethod },
+      { search: searchTerm, status: filterStatus, method: filterMethod },
     ],
     queryFn: ({ signal }) =>
       fetchAdminPayments(
         {
-          page,
-          limit: pageSize,
           search: searchTerm || undefined,
           status: filterStatus !== "all" ? filterStatus : undefined,
           method: filterMethod !== "all" ? filterMethod : undefined,
@@ -92,9 +86,14 @@ export default function ManagePayments() {
   });
 
   const payments = paymentsData?.data ?? [];
-  const meta = paymentsData?.meta;
   const stats = computePaymentStats(payments);
+  const availableStatusSet = new Set(payments.map((p) => p.status));
+  const availableStatuses = PAYMENT_STATUS_ORDER.filter((s) =>
+    availableStatusSet.has(s),
+  );
   const shouldScrollTableBody = payments.length > 5;
+  const ROW_HEIGHT_PX = 56; // approximate table row height
+  const HEADER_HEIGHT_PX = 56; // approximate header height
 
   // Refunds are handled from the booking page; no client refund action here.
 
@@ -125,8 +124,6 @@ export default function ManagePayments() {
   ) => {
     statusMutation.mutate({ id: payment.id, status: newStatus });
   };
-
-  const totalPages = meta?.totalPages ?? 1;
 
   const getMethodIcon = (method: string) => {
     switch (method) {
@@ -208,7 +205,7 @@ export default function ManagePayments() {
           </CardHeader>
           <CardContent className="text-rose-900">
             <div className="text-2xl font-bold text-rose-900">
-              {meta?.total ?? payments.length}
+              {payments.length}
             </div>
             <p className="text-xs text-rose-700">All time</p>
           </CardContent>
@@ -227,7 +224,6 @@ export default function ManagePayments() {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setPage(1);
               }}
               className="md:w-96 bg-sky-100 border-none"
             />
@@ -235,7 +231,6 @@ export default function ManagePayments() {
               value={filterStatus}
               onValueChange={(v) => {
                 setFilterStatus(v);
-                setPage(1);
               }}
             >
               <SelectTrigger className="md:w-48 border-gray-300 bg-sky-100">
@@ -243,7 +238,7 @@ export default function ManagePayments() {
               </SelectTrigger>
               <SelectContent className="border-none bg-white">
                 <SelectItem value="all">All Status</SelectItem>
-                {PAYMENT_STATUS_ORDER.map((status) => (
+                {availableStatuses.map((status) => (
                   <SelectItem key={status} value={status}>
                     {paymentStatusLabels[status]}
                   </SelectItem>
@@ -254,7 +249,6 @@ export default function ManagePayments() {
               value={filterMethod}
               onValueChange={(v) => {
                 setFilterMethod(v);
-                setPage(1);
               }}
             >
               <SelectTrigger className="md:w-48 border-gray-300 bg-sky-100">
@@ -271,11 +265,13 @@ export default function ManagePayments() {
           </div>
 
           <TableScrollArea
-            className={`rounded bg-white ${
-              shouldScrollTableBody
-                ? "max-h-82 overflow-y-auto"
-                : "max-h-none overflow-visible"
-            }`}
+            className="rounded bg-white"
+            style={{
+              maxHeight: shouldScrollTableBody
+                ? `${ROW_HEIGHT_PX * 5 + HEADER_HEIGHT_PX}px`
+                : undefined,
+              overflowY: shouldScrollTableBody ? "auto" : "visible",
+            }}
           >
             <table className="w-full min-w-175 caption-bottom text-sm">
               <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-white">
@@ -310,149 +306,104 @@ export default function ManagePayments() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                  {isLoading ? (
-                    <TableSkeletonRows columns={9} rows={5} />
-                  ) : isError ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={9}
-                        className="text-center py-8 text-red-600"
-                      >
-                        Failed to load payments:{" "}
-                        {error instanceof Error
-                          ? error.message
-                          : "Unknown error"}
+                {isLoading ? (
+                  <TableSkeletonRows columns={9} rows={5} />
+                ) : isError ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-8 text-red-600"
+                    >
+                      Failed to load payments:{" "}
+                      {error instanceof Error ? error.message : "Unknown error"}
+                    </TableCell>
+                  </TableRow>
+                ) : payments.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      No payments found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  payments.map((payment) => (
+                    <TableRow key={payment.id} className="border-gray-300">
+                      <TableCell className="font-medium">
+                        {payment.invoiceNumber}
+                      </TableCell>
+                      <TableCell>{payment.bookingCode}</TableCell>
+                      <TableCell>{payment.customerName}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getMethodIcon(payment.method)}
+                          <span className="capitalize">
+                            {payment.method.replace("_", " ")}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold">
+                        {formatETB(payment.amount)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatETB(payment.tax + payment.fees)}
+                      </TableCell>
+                      <TableCell>
+                        <PaymentStatusBadge status={payment.status} />
+                      </TableCell>
+                      <TableCell>
+                        {payment.paidAt
+                          ? new Date(payment.paidAt).toLocaleDateString()
+                          : new Date(payment.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View Details"
+                            disabled={statusMutation.isPending}
+                            onClick={() => {
+                              setSelectedPayment(payment);
+                              setIsDetailDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Download Invoice"
+                            disabled={statusMutation.isPending}
+                            onClick={() => {
+                              // Create a simple HTML invoice and download as file
+                              const invoiceHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${payment.invoiceNumber}</title></head><body><h1>Invoice: ${payment.invoiceNumber}</h1><p><strong>Booking:</strong> ${payment.bookingCode}</p><p><strong>Customer:</strong> ${payment.customerName} &lt;${payment.customerEmail}&gt;</p><p><strong>Amount:</strong> ${formatETB(payment.amount)}</p><p><strong>Tax:</strong> ${formatETB(payment.tax)}</p><p><strong>Fees:</strong> ${formatETB(payment.fees)}</p><p><strong>Paid At:</strong> ${payment.paidAt ?? payment.createdAt}</p><p><strong>Method:</strong> ${payment.method}</p><p><strong>Status:</strong> ${payment.status}</p></body></html>`;
+                              const blob = new Blob([invoiceHtml], {
+                                type: "text/html",
+                              });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `${payment.invoiceNumber}.html`;
+                              document.body.appendChild(a);
+                              a.click();
+                              a.remove();
+                              URL.revokeObjectURL(url);
+                            }}
+                          >
+                            <Download className="size-4" />
+                          </Button>
+                          {/* Refund action removed — handled in booking page */}
+                          {/* Delete action removed — handled in booking page */}
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ) : payments.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={9}
-                        className="text-center py-8 text-muted-foreground"
-                      >
-                        No payments found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    payments.map((payment) => (
-                      <TableRow key={payment.id} className="border-gray-300">
-                        <TableCell className="font-medium">
-                          {payment.invoiceNumber}
-                        </TableCell>
-                        <TableCell>{payment.bookingCode}</TableCell>
-                        <TableCell>{payment.customerName}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getMethodIcon(payment.method)}
-                            <span className="capitalize">
-                              {payment.method.replace("_", " ")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          {formatETB(payment.amount)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatETB(payment.tax + payment.fees)}
-                        </TableCell>
-                        <TableCell>
-                          <PaymentStatusBadge status={payment.status} />
-                        </TableCell>
-                        <TableCell>
-                          {payment.paidAt
-                            ? new Date(payment.paidAt).toLocaleDateString()
-                            : new Date(payment.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="View Details"
-                              disabled={statusMutation.isPending}
-                              onClick={() => {
-                                setSelectedPayment(payment);
-                                setIsDetailDialogOpen(true);
-                              }}
-                            >
-                              <Eye className="size-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Download Invoice"
-                              disabled={statusMutation.isPending}
-                              onClick={() => {
-                                // Create a simple HTML invoice and download as file
-                                const invoiceHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${payment.invoiceNumber}</title></head><body><h1>Invoice: ${payment.invoiceNumber}</h1><p><strong>Booking:</strong> ${payment.bookingCode}</p><p><strong>Customer:</strong> ${payment.customerName} &lt;${payment.customerEmail}&gt;</p><p><strong>Amount:</strong> ${formatETB(payment.amount)}</p><p><strong>Tax:</strong> ${formatETB(payment.tax)}</p><p><strong>Fees:</strong> ${formatETB(payment.fees)}</p><p><strong>Paid At:</strong> ${payment.paidAt ?? payment.createdAt}</p><p><strong>Method:</strong> ${payment.method}</p><p><strong>Status:</strong> ${payment.status}</p></body></html>`;
-                                const blob = new Blob([invoiceHtml], {
-                                  type: "text/html",
-                                });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = `${payment.invoiceNumber}.html`;
-                                document.body.appendChild(a);
-                                a.click();
-                                a.remove();
-                                URL.revokeObjectURL(url);
-                              }}
-                            >
-                              <Download className="size-4" />
-                            </Button>
-                            {/* Refund action removed — handled in booking page */}
-                            {payment.status === "pending" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Mark as Completed"
-                                disabled={statusMutation.isPending}
-                                onClick={() =>
-                                  handleStatusChange(payment, "completed")
-                                }
-                              >
-                                <DollarSign className="size-4" />
-                              </Button>
-                            )}
-                            {/* Delete action removed — handled in booking page */}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </table>
-            </TableScrollArea>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4">
-              <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-                {meta && ` (${meta.total} total)`}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="size-4 mr-1" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                  <ChevronRight className="size-4 ml-1" />
-                </Button>
-              </div>
-            </div>
-          )}
+                  ))
+                )}
+              </TableBody>
+            </table>
+          </TableScrollArea>
         </CardContent>
       </Card>
 

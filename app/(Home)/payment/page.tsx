@@ -114,6 +114,7 @@ const fetchPaymentBookings = async (): Promise<PaymentBooking[]> => {
       paymentSummary,
       totalAmount,
       payments,
+      booking.status,
     );
 
     return {

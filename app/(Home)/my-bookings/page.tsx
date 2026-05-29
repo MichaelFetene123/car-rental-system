@@ -192,11 +192,12 @@ const mapBackendBookingToUiBooking = (booking: BackendBooking): Booking => {
   const payments = booking.payments ?? [];
   const totalAmount = Number(booking.totalAmount);
   const paymentSummary = summarizePayments(payments);
-  const paymentStatus = resolvePaymentStatus(
-    paymentSummary,
-    totalAmount,
-    payments,
-  );
+    const paymentStatus = resolvePaymentStatus(
+      paymentSummary,
+      totalAmount,
+      payments,
+      booking.status,
+    );
   const displayPaymentStatus =
     ["active", "completed"].includes(booking.status) &&
     ![

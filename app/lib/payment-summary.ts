@@ -55,6 +55,7 @@ export const resolvePaymentStatus = (
   summary: PaymentSummary,
   totalAmount: number,
   payments: PaymentLike[],
+  bookingStatus?: string,
 ): PaymentStatus => {
   if (!payments.length) return "pending";
 
@@ -100,7 +101,10 @@ export const resolvePaymentStatus = (
     return "failed";
   }
 
-  if (summary.pendingPayments > 0) {
+  // For rejected bookings, treat any transient pending payments as failed
+  // for display purposes so we don't show "Payment Pending" alongside
+  // a `rejected` booking status.
+  if (bookingStatus !== "rejected" && summary.pendingPayments > 0) {
     return "pending";
   }
 

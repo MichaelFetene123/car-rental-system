@@ -501,7 +501,7 @@ const ManageBookingsPage = () => {
     const payments = booking.payments ?? [];
     const summary = getPaymentSummary(booking);
 
-    return resolvePaymentStatus(summary, totalAmount, payments);
+    return resolvePaymentStatus(summary, totalAmount, payments, booking.status);
   };
 
   const isPaymentReady = (booking: AdminBooking) => {

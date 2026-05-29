@@ -6,16 +6,8 @@ import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Label } from "@/app/ui/lable";
 import { Textarea } from "@/app/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/ui/table";
 import { Badge } from "@/app/ui/badge";
-import { Plus, Edit, Trash2, MapPin } from "lucide-react";
+import { Plus, Edit, Trash2, MapPin, RefreshCw, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,75 +20,22 @@ import {
 import { Switch } from "@/app/ui/switch";
 import { toast } from "sonner";
 import { lusitana } from "@/app/ui/utils/fonts";
-
-interface Location {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  phone: string;
-  email: string;
-  isActive: boolean;
-  openingHours: string;
-}
-
-const initialLocations: Location[] = [
-  {
-    id: "1",
-    name: "Downtown Branch",
-    address: "123 Main Street",
-    city: "New York",
-    state: "NY",
-    zipCode: "10001",
-    phone: "+1 (555) 100-2000",
-    email: "downtown@carrental.com",
-    isActive: true,
-    openingHours: "Mon-Fri: 8AM-8PM, Sat-Sun: 9AM-6PM",
-  },
-  {
-    id: "2",
-    name: "Airport Branch",
-    address: "JFK International Airport, Terminal 4",
-    city: "New York",
-    state: "NY",
-    zipCode: "11430",
-    phone: "+1 (555) 100-3000",
-    email: "airport@carrental.com",
-    isActive: true,
-    openingHours: "24/7",
-  },
-  {
-    id: "3",
-    name: "Mall Branch",
-    address: "456 Shopping Center Blvd",
-    city: "Brooklyn",
-    state: "NY",
-    zipCode: "11201",
-    phone: "+1 (555) 100-4000",
-    email: "mall@carrental.com",
-    isActive: true,
-    openingHours: "Mon-Sun: 10AM-9PM",
-  },
-  {
-    id: "4",
-    name: "Suburban Office",
-    address: "789 Oak Avenue",
-    city: "Queens",
-    state: "NY",
-    zipCode: "11354",
-    phone: "+1 (555) 100-5000",
-    email: "suburban@carrental.com",
-    isActive: false,
-    openingHours: "Mon-Fri: 9AM-6PM",
-  },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchAdminLocations,
+  createLocation,
+  updateLocation,
+  deleteLocation,
+  toggleLocationStatus,
+  ADMIN_LOCATIONS_QUERY_KEY,
+  type AdminLocation,
+  type CreateLocationPayload,
+} from "@/app/lib/locations-api";
 
 export default function ManageLocations() {
-  const [locations, setLocations] = useState<Location[]>(initialLocations);
+  const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [editingLocation, setEditingLocation] = useState<AdminLocation | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -108,22 +47,69 @@ export default function ManageLocations() {
     openingHours: "",
   });
 
+  const {
+    data: locations = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ADMIN_LOCATIONS_QUERY_KEY,
+    queryFn: ({ signal }) => fetchAdminLocations(signal),
+  });
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ADMIN_LOCATIONS_QUERY_KEY });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateLocationPayload) => createLocation(payload),
+    onSuccess: () => {
+      toast.success("Location created");
+      setIsDialogOpen(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to create location"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: CreateLocationPayload }) =>
+      updateLocation(id, payload),
+    onSuccess: () => {
+      toast.success("Location updated");
+      setIsDialogOpen(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update location"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteLocation(id),
+    onSuccess: () => {
+      toast.success("Location deleted");
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete location"),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      toggleLocationStatus(id, isActive),
+    onSuccess: () => invalidate(),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update status"),
+  });
+
+  const isLoadingMutation =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending ||
+    toggleMutation.isPending;
+
   const handleAddLocation = () => {
     setEditingLocation(null);
-    setFormData({
-      name: "",
-      address: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      phone: "",
-      email: "",
-      openingHours: "",
-    });
+    setFormData({ name: "", address: "", city: "", state: "", zipCode: "", phone: "", email: "", openingHours: "" });
     setIsDialogOpen(true);
   };
 
-  const handleEditLocation = (location: Location) => {
+  const handleEditLocation = (location: AdminLocation) => {
     setEditingLocation(location);
     setFormData({
       name: location.name,
@@ -131,50 +117,42 @@ export default function ManageLocations() {
       city: location.city,
       state: location.state,
       zipCode: location.zipCode,
-      phone: location.phone,
-      email: location.email,
-      openingHours: location.openingHours,
+      phone: location.phone ?? "",
+      email: location.email ?? "",
+      openingHours: location.openingHours ?? "",
     });
     setIsDialogOpen(true);
   };
 
   const handleDeleteLocation = (id: string) => {
-    setLocations(locations.filter((location) => location.id !== id));
-    toast.success("Location deleted");
+    deleteMutation.mutate(id);
   };
 
-  const handleToggleActive = (id: string) => {
-    setLocations(
-      locations.map((location) =>
-        location.id === id
-          ? { ...location, isActive: !location.isActive }
-          : location,
-      ),
-    );
+  const handleToggleActive = (id: string, current: boolean) => {
+    toggleMutation.mutate({ id, isActive: !current });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const payload: CreateLocationPayload = {
+      name: formData.name,
+      address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      zipCode: formData.zipCode,
+      phone: formData.phone || undefined,
+      email: formData.email || undefined,
+      openingHours: formData.openingHours || undefined,
+    };
     if (editingLocation) {
-      setLocations(
-        locations.map((location) =>
-          location.id === editingLocation.id
-            ? { ...location, ...formData }
-            : location,
-        ),
-      );
-      toast.success("Location updated");
+      updateMutation.mutate({ id: editingLocation.id, payload });
     } else {
-      const newLocation: Location = {
-        id: Date.now().toString(),
-        ...formData,
-        isActive: true,
-      };
-      setLocations([...locations, newLocation]);
-      toast.success("Location added");
+      createMutation.mutate(payload);
     }
-    setIsDialogOpen(false);
   };
+
+  const activeCount = locations.filter((l) => l.isActive).length;
+  const inactiveCount = locations.filter((l) => !l.isActive).length;
 
   return (
     <div className="space-y-6">
@@ -282,7 +260,6 @@ export default function ManageLocations() {
                       setFormData({ ...formData, phone: e.target.value })
                     }
                     className="border-gray-400"
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -295,7 +272,6 @@ export default function ManageLocations() {
                       setFormData({ ...formData, email: e.target.value })
                     }
                     className="border-gray-400"
-                    required
                   />
                 </div>
               </div>
@@ -308,7 +284,6 @@ export default function ManageLocations() {
                     setFormData({ ...formData, openingHours: e.target.value })
                   }
                   placeholder="e.g., Mon-Fri: 9AM-6PM, Sat-Sun: 10AM-4PM"
-                  required
                   className="border-gray-400"
                 />
               </div>
@@ -323,9 +298,14 @@ export default function ManageLocations() {
                 </Button>
                 <Button
                   type="submit"
+                  disabled={isLoadingMutation}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {editingLocation ? "Update Location" : "Add Location"}
+                  {isLoadingMutation
+                    ? "Saving..."
+                    : editingLocation
+                      ? "Update Location"
+                      : "Add Location"}
                 </Button>
               </DialogFooter>
             </form>
@@ -333,84 +313,24 @@ export default function ManageLocations() {
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {locations.map((location) => (
-          <Card key={location.id}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="bg-blue-100 p-2 rounded-lg">
-                    <MapPin className="size-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{location.name}</CardTitle>
-                    <Badge
-                      className={
-                        location.isActive
-                          ? "bg-green-100 text-green-700 mt-2"
-                          : "bg-gray-100 text-gray-700 mt-2"
-                      }
-                    >
-                      {location.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm text-muted-foreground text-gray-500">
-                  Address
-                </p>
-                <p className="text-sm">
-                  {location.address}
-                  <br />
-                  {location.city}, {location.state} {location.zipCode}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground text-gray-500">
-                  Contact
-                </p>
-                <p className="text-sm">{location.phone}</p>
-                <p className="text-sm">{location.email}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground text-gray-500">
-                  Hours
-                </p>
-                <p className="text-sm">{location.openingHours}</p>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-gray-300">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={location.isActive}
-                    onCheckedChange={() => handleToggleActive(location.id)}
-                    className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 **:data-[slot=switch-thumb]:bg-white"
-                  />
-                  <span className="text-sm text-muted-foreground">Active</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEditLocation(location)}
-                  >
-                    <Edit className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteLocation(location.id)}
-                  >
-                    <Trash2 className="size-4 text-red-600" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {isError && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertCircle className="size-5 shrink-0" />
+          <span>
+            {error instanceof Error ? error.message : "Failed to load locations"}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              queryClient.invalidateQueries({ queryKey: ADMIN_LOCATIONS_QUERY_KEY })
+            }
+            className="ml-auto shrink-0 text-red-700 hover:text-red-900"
+          >
+            <RefreshCw className="size-4 mr-1" /> Retry
+          </Button>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -422,7 +342,7 @@ export default function ManageLocations() {
           </CardHeader>
           <CardContent className="text-blue-900">
             <div className="text-3xl font-semibold text-blue-900">
-              {locations.length}
+              {isLoading ? "—" : locations.length}
             </div>
           </CardContent>
         </Card>
@@ -434,7 +354,7 @@ export default function ManageLocations() {
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-3xl font-semibold text-emerald-900">
-              {locations.filter((l) => l.isActive).length}
+              {isLoading ? "—" : activeCount}
             </div>
           </CardContent>
         </Card>
@@ -446,11 +366,126 @@ export default function ManageLocations() {
           </CardHeader>
           <CardContent className="text-amber-900">
             <div className="text-3xl font-semibold text-amber-900">
-              {locations.filter((l) => !l.isActive).length}
+              {isLoading ? "—" : inactiveCount}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={`skeleton-${i}`}>
+              <CardHeader>
+                <div className="h-5 w-3/4 animate-pulse rounded bg-gray-200" />
+                <div className="mt-2 h-4 w-1/4 animate-pulse rounded bg-gray-200" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="h-4 w-full animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : locations.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 py-16 text-center">
+          <MapPin className="mb-3 size-10 text-gray-400" />
+          <p className="text-lg font-medium text-gray-600">No locations yet</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Add your first location to get started.
+          </p>
+          <Button
+            onClick={handleAddLocation}
+            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus className="size-4 mr-2" />
+            Add Location
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {locations.map((location) => (
+            <Card key={location.id}>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <MapPin className="size-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{location.name}</CardTitle>
+                      <Badge
+                        className={
+                          location.isActive
+                            ? "bg-green-100 text-green-700 mt-2"
+                            : "bg-gray-100 text-gray-700 mt-2"
+                        }
+                      >
+                        {location.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-sm text-muted-foreground text-gray-500">
+                    Address
+                  </p>
+                  <p className="text-sm">
+                    {location.address}
+                    <br />
+                    {location.city}, {location.state} {location.zipCode}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground text-gray-500">
+                    Contact
+                  </p>
+                  <p className="text-sm">{location.phone ?? "—"}</p>
+                  <p className="text-sm">{location.email ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground text-gray-500">
+                    Hours
+                  </p>
+                  <p className="text-sm">{location.openingHours ?? "—"}</p>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={location.isActive}
+                      disabled={toggleMutation.isPending}
+                      onCheckedChange={() =>
+                        handleToggleActive(location.id, location.isActive)
+                      }
+                      className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 **:data-[slot=switch-thumb]:bg-white"
+                    />
+                    <span className="text-sm text-muted-foreground">Active</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEditLocation(location)}
+                    >
+                      <Edit className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteLocation(location.id)}
+                    >
+                      <Trash2 className="size-4 text-red-600" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -141,7 +141,7 @@ const fetchPaymentBookings = async (): Promise<PaymentBooking[]> => {
   });
 };
 
-export default function PaymentPage() {
+function PaymentContent() {
   const suspensionMessage = "Your account is suspended. Booking is unavailable.";
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(
@@ -370,5 +370,13 @@ export default function PaymentPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentContent />
+    </Suspense>
   );
 }

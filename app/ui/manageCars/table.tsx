@@ -34,7 +34,7 @@ export default function CarsTable({ query, currentPage }: CarsTableProps) {
                   <div>
                     <div className="mb-2 flex items-center">
                       <img
-                        src={car.image_url}
+                        src={car.image}
                         className="mr-2 rounded-full"
                         width={28}
                         height={28}
@@ -99,7 +99,7 @@ export default function CarsTable({ query, currentPage }: CarsTableProps) {
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex items-center gap-3">
                       <Image
-                        src={car.image_url}
+                        src={car.image}
                         className="rounded-full"
                         width={28}
                         height={28}

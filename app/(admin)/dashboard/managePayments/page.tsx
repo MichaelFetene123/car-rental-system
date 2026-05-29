@@ -53,6 +53,10 @@ import {
   type PaymentStatus,
 } from "@/app/lib/payments-api";
 import { PAYMENT_STATUS_ORDER, paymentStatusLabels } from "@/app/lib/status";
+import {
+  downloadInvoiceAsHtml,
+  downloadInvoiceAsPdf,
+} from "@/app/lib/invoice-utils";
 
 export default function ManagePayments() {
   const queryClient = useQueryClient();
@@ -60,6 +64,8 @@ export default function ManagePayments() {
   const [selectedPayment, setSelectedPayment] = useState<AdminPayment | null>(
     null,
   );
+  const [downloadMenuPayment, setDownloadMenuPayment] =
+    useState<AdminPayment | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterMethod, setFilterMethod] = useState("all");
@@ -371,29 +377,48 @@ export default function ManagePayments() {
                           >
                             <Eye className="size-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Download Invoice"
-                            disabled={statusMutation.isPending}
-                            onClick={() => {
-                              // Create a simple HTML invoice and download as file
-                              const invoiceHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${payment.invoiceNumber}</title></head><body><h1>Invoice: ${payment.invoiceNumber}</h1><p><strong>Booking:</strong> ${payment.bookingCode}</p><p><strong>Customer:</strong> ${payment.customerName} &lt;${payment.customerEmail}&gt;</p><p><strong>Amount:</strong> ${formatETB(payment.amount)}</p><p><strong>Tax:</strong> ${formatETB(payment.tax)}</p><p><strong>Fees:</strong> ${formatETB(payment.fees)}</p><p><strong>Paid At:</strong> ${payment.paidAt ?? payment.createdAt}</p><p><strong>Method:</strong> ${payment.method}</p><p><strong>Status:</strong> ${payment.status}</p></body></html>`;
-                              const blob = new Blob([invoiceHtml], {
-                                type: "text/html",
-                              });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `${payment.invoiceNumber}.html`;
-                              document.body.appendChild(a);
-                              a.click();
-                              a.remove();
-                              URL.revokeObjectURL(url);
-                            }}
-                          >
-                            <Download className="size-4" />
-                          </Button>
+                          <div className="relative">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Download Invoice"
+                              disabled={statusMutation.isPending}
+                              onClick={() =>
+                                setDownloadMenuPayment(
+                                  downloadMenuPayment?.id === payment.id
+                                    ? null
+                                    : payment,
+                                )
+                              }
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                            {downloadMenuPayment?.id === payment.id && (
+                              <div
+                                className="absolute right-0 top-full z-50 mt-1 min-w-36 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                                onMouseLeave={() => setDownloadMenuPayment(null)}
+                              >
+                                <button
+                                  className="flex w-full items-center px-3 py-2 text-sm hover:bg-gray-100"
+                                  onClick={() => {
+                                    downloadInvoiceAsPdf(payment);
+                                    setDownloadMenuPayment(null);
+                                  }}
+                                >
+                                  Download as PDF
+                                </button>
+                                <button
+                                  className="flex w-full items-center px-3 py-2 text-sm hover:bg-gray-100"
+                                  onClick={() => {
+                                    downloadInvoiceAsHtml(payment);
+                                    setDownloadMenuPayment(null);
+                                  }}
+                                >
+                                  Download as HTML
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           {/* Refund action removed — handled in booking page */}
                           {/* Delete action removed — handled in booking page */}
                         </div>
@@ -478,24 +503,46 @@ export default function ManagePayments() {
             >
               Close
             </Button>
-            <Button
-              onClick={() => {
-                if (!selectedPayment) return;
-                const invoiceHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${selectedPayment.invoiceNumber}</title></head><body><h1>Invoice: ${selectedPayment.invoiceNumber}</h1><p><strong>Booking:</strong> ${selectedPayment.bookingCode}</p><p><strong>Customer:</strong> ${selectedPayment.customerName} &lt;${selectedPayment.customerEmail}&gt;</p><p><strong>Amount:</strong> ${formatETB(selectedPayment.amount)}</p><p><strong>Tax:</strong> ${formatETB(selectedPayment.tax)}</p><p><strong>Fees:</strong> ${formatETB(selectedPayment.fees)}</p><p><strong>Paid At:</strong> ${selectedPayment.paidAt ?? selectedPayment.createdAt}</p><p><strong>Method:</strong> ${selectedPayment.method}</p><p><strong>Status:</strong> ${selectedPayment.status}</p></body></html>`;
-                const blob = new Blob([invoiceHtml], { type: "text/html" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${selectedPayment.invoiceNumber}.html`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Download Invoice
-            </Button>
+            <div className="relative">
+              <Button
+                onClick={() =>
+                  setDownloadMenuPayment(
+                    downloadMenuPayment?.id === selectedPayment?.id
+                      ? null
+                      : selectedPayment ?? null,
+                  )
+                }
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Download Invoice
+              </Button>
+              {downloadMenuPayment?.id === selectedPayment?.id &&
+                selectedPayment && (
+                  <div
+                    className="absolute right-0 top-full z-50 mt-1 min-w-36 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                    onMouseLeave={() => setDownloadMenuPayment(null)}
+                  >
+                    <button
+                      className="flex w-full items-center px-3 py-2 text-sm hover:bg-gray-100"
+                      onClick={() => {
+                        downloadInvoiceAsPdf(selectedPayment);
+                        setDownloadMenuPayment(null);
+                      }}
+                    >
+                      Download as PDF
+                    </button>
+                    <button
+                      className="flex w-full items-center px-3 py-2 text-sm hover:bg-gray-100"
+                      onClick={() => {
+                        downloadInvoiceAsHtml(selectedPayment);
+                        setDownloadMenuPayment(null);
+                      }}
+                    >
+                      Download as HTML
+                    </button>
+                  </div>
+                )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

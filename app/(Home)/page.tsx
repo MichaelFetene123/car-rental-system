@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Users, Fuel, Settings, MapPin, Calendar } from "lucide-react";
+import {
+  Search,
+  Users,
+  Fuel,
+  Settings,
+  MapPin,
+  Calendar,
+  BadgeAlert,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/server/server";
 import { useRouter } from "next/navigation";
@@ -334,6 +342,23 @@ export default function HomePage() {
 
               {isLoadingCars ? (
                 <HomeCarCardsSkeleton count={HOME_RECENT_CARS_LIMIT} />
+              ) : visibleCars.length === 0 ? (
+                <div className="col-span-full">
+                  <Card className="border-dashed border-gray-300 bg-white/70 backdrop-blur-sm p-12">
+                    <div className="max-w-lg mx-auto text-center">
+                      <div className="w-14 h-14  flex items-center justify-center mx-auto mb-4">
+                        <BadgeAlert className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      </div>
+                      <h3 className="text-xl font-semibold mb-2">
+                        No cars available yet
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        There are currently no cars to display. Please check
+                        back soon.
+                      </p>
+                    </div>
+                  </Card>
+                </div>
               ) : (
                 visibleCars.map((car) => (
                   <Card

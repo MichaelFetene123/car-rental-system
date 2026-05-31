@@ -175,6 +175,7 @@ const getStatusColor = (status: Car["status"]) => {
 type CarTableRowProps = {
   car: ManageCar;
   imageSrc: string;
+  locationIsActive?: boolean;
   onEdit: (car: ManageCar) => void;
   onDelete: (id: string) => void;
   canManageActions?: boolean;
@@ -183,6 +184,7 @@ type CarTableRowProps = {
 const CarTableRow = memo(function CarTableRow({
   car,
   imageSrc,
+  locationIsActive,
   onEdit,
   onDelete,
   canManageActions = false,
@@ -216,12 +218,19 @@ const CarTableRow = memo(function CarTableRow({
         </div>
       </TableCell>
       <TableCell className="max-w-32.5 border-b border-gray-200 px-2 py-2.5 align-middle sm:px-3">
-        <span
-          className="block truncate text-gray-700"
-          title={getLocationLabel(car.location)}
-        >
-          {getLocationLabel(car.location)}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span
+            className="block truncate text-gray-700"
+            title={getLocationLabel(car.location)}
+          >
+            {getLocationLabel(car.location)}
+          </span>
+          {locationIsActive === false && (
+            <Badge className="w-fit bg-orange-100 text-orange-700 border border-orange-300 text-xs">
+              Location Inactive
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell className="border-b border-gray-200 px-2 py-2.5 text-sm text-gray-700 sm:px-3">
         {car.year}
@@ -429,6 +438,11 @@ export default function ManageCars() {
         filteredCars.map((car) => [car.id, getCarImageSrc(car)] as const),
       ),
     [filteredCars],
+  );
+
+  const locationStatusById = useMemo(
+    () => new Map(locations.map((location) => [location.id, location.isActive] as const)),
+    [locations],
   );
 
   const handleAddCar = useCallback(() => {
@@ -948,6 +962,9 @@ export default function ManageCars() {
                         key={car.id}
                         car={car}
                         imageSrc={carImageSources.get(car.id) ?? ""}
+                        locationIsActive={
+                          car.locationId ? locationStatusById.get(car.locationId) : undefined
+                        }
                         onEdit={handleEditCar}
                         onDelete={handleDeleteCar}
                         canManageActions={canManageCars}

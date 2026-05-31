@@ -7,7 +7,14 @@ import { Input } from "@/app/ui/input";
 import { Label } from "@/app/ui/lable";
 import { Textarea } from "@/app/ui/textarea";
 import { Badge } from "@/app/ui/badge";
-import { Plus, Edit, Trash2, MapPin, RefreshCw, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  MapPin,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +42,9 @@ import {
 export default function ManageLocations() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<AdminLocation | null>(null);
+  const [editingLocation, setEditingLocation] = useState<AdminLocation | null>(
+    null,
+  );
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -67,18 +76,29 @@ export default function ManageLocations() {
       setIsDialogOpen(false);
       invalidate();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to create location"),
+    onError: (err) =>
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create location",
+      ),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: CreateLocationPayload }) =>
-      updateLocation(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: CreateLocationPayload;
+    }) => updateLocation(id, payload),
     onSuccess: () => {
       toast.success("Location updated");
       setIsDialogOpen(false);
       invalidate();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update location"),
+    onError: (err) =>
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update location",
+      ),
   });
 
   const deleteMutation = useMutation({
@@ -87,14 +107,20 @@ export default function ManageLocations() {
       toast.success("Location deleted");
       invalidate();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete location"),
+    onError: (err) =>
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete location",
+      ),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       toggleLocationStatus(id, isActive),
     onSuccess: () => invalidate(),
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update status"),
+    onError: (err) =>
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update status",
+      ),
   });
 
   const isLoadingMutation =
@@ -105,7 +131,16 @@ export default function ManageLocations() {
 
   const handleAddLocation = () => {
     setEditingLocation(null);
-    setFormData({ name: "", address: "", city: "", state: "", zipCode: "", phone: "", email: "", openingHours: "" });
+    setFormData({
+      name: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      phone: "",
+      email: "",
+      openingHours: "",
+    });
     setIsDialogOpen(true);
   };
 
@@ -317,13 +352,17 @@ export default function ManageLocations() {
         <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <AlertCircle className="size-5 shrink-0" />
           <span>
-            {error instanceof Error ? error.message : "Failed to load locations"}
+            {error instanceof Error
+              ? error.message
+              : "Failed to load locations"}
           </span>
           <Button
             variant="ghost"
             size="sm"
             onClick={() =>
-              queryClient.invalidateQueries({ queryKey: ADMIN_LOCATIONS_QUERY_KEY })
+              queryClient.invalidateQueries({
+                queryKey: ADMIN_LOCATIONS_QUERY_KEY,
+              })
             }
             className="ml-auto shrink-0 text-red-700 hover:text-red-900"
           >
@@ -342,7 +381,7 @@ export default function ManageLocations() {
           </CardHeader>
           <CardContent className="text-blue-900">
             <div className="text-3xl font-semibold text-blue-900">
-              {isLoading ? "—" : locations.length}
+              {isLoading ? "0" : locations.length}
             </div>
           </CardContent>
         </Card>
@@ -354,7 +393,7 @@ export default function ManageLocations() {
           </CardHeader>
           <CardContent className="text-emerald-900">
             <div className="text-3xl font-semibold text-emerald-900">
-              {isLoading ? "—" : activeCount}
+              {isLoading ? "0" : activeCount}
             </div>
           </CardContent>
         </Card>
@@ -366,7 +405,7 @@ export default function ManageLocations() {
           </CardHeader>
           <CardContent className="text-amber-900">
             <div className="text-3xl font-semibold text-amber-900">
-              {isLoading ? "—" : inactiveCount}
+              {isLoading ? "0" : inactiveCount}
             </div>
           </CardContent>
         </Card>
@@ -375,15 +414,55 @@ export default function ManageLocations() {
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={`skeleton-${i}`}>
+            <Card key={`skeleton-${i}`} className="animate-pulse">
               <CardHeader>
-                <div className="h-5 w-3/4 animate-pulse rounded bg-gray-200" />
-                <div className="mt-2 h-4 w-1/4 animate-pulse rounded bg-gray-200" />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-gray-100 p-2 rounded-lg">
+                      <div className="size-5 rounded bg-gray-200" />
+                    </div>
+                    <div>
+                      <div className="h-6 w-40 rounded-md bg-gray-200" />
+                      <div className="mt-2 h-6 w-16 rounded-full bg-gray-200" />
+                    </div>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="h-4 w-full animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200" />
+                <div>
+                  <p className="text-sm text-muted-foreground text-gray-500">
+                    {/* Address */}
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    <div className="h-4 w-5/6 rounded bg-gray-200" />
+                    <div className="h-4 w-4/6 rounded bg-gray-200" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground text-gray-500">
+                    {/* Contact */}
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    <div className="h-4 w-1/2 rounded bg-gray-200" />
+                    <div className="h-4 w-2/3 rounded bg-gray-200" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground text-gray-500">
+                    {/* Hours */}
+                  </p>
+                  <div className="mt-2 h-4 w-3/4 rounded bg-gray-200" />
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-300">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-11 rounded-full bg-gray-200" />
+                    <div className="h-4 w-12 rounded bg-gray-200" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="size-9 rounded-md bg-gray-200" />
+                    <div className="size-9 rounded-md bg-gray-200" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -462,7 +541,9 @@ export default function ManageLocations() {
                       }
                       className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-400 **:data-[slot=switch-thumb]:bg-white"
                     />
-                    <span className="text-sm text-muted-foreground">Active</span>
+                    <span className="text-sm text-muted-foreground">
+                      Active
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <Button

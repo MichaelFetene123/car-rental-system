@@ -14,7 +14,11 @@ import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/server/server";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { BackendCar, PublicCar } from "@/app/lib/data";
+import {
+  PUBLIC_CARS_QUERY_KEY,
+  type BackendCar,
+  type PublicCar,
+} from "@/app/lib/data";
 import { getLocationLabel } from "@/app/lib/format";
 import {
   getUnavailableBadgeLabel,
@@ -37,7 +41,6 @@ import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 // import PublicHeader from "@/app/ui/public-header";
 
 const HOME_RECENT_CARS_LIMIT = 6;
-const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
 
 const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   id: car.id,
@@ -45,13 +48,17 @@ const mapBackendCarToPublicCar = (car: BackendCar): PublicCar => ({
   year: car.year,
   category: car.category?.name ?? "Other",
   location: car.homeLocation?.name ?? "Unknown",
+  homeLocationIsActive: car.homeLocation?.isActive,
   seats: car.seats,
   fuelType: car.fuelType ?? "Unknown",
   transmission: car.transmission,
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   status: car.status,
-  available: car.status === "available",
+  available:
+    car.status === "available" &&
+    (car.category?.isActive ?? true) &&
+    (car.homeLocation?.isActive ?? true),
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
@@ -95,9 +102,11 @@ export default function HomePage() {
   } = useQuery<PublicCar[], Error>({
     queryKey: PUBLIC_CARS_QUERY_KEY,
     queryFn: ({ signal }) => fetchPublicCars(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const availableCategories = useMemo(

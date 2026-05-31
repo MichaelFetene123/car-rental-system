@@ -31,6 +31,7 @@ import { usePermissions } from "@/app/hooks/use-permissions";
 import { Permissions } from "@/app/lib/permissions";
 import {
   ADMIN_CAR_CATEGORIES_QUERY_KEY,
+  PUBLIC_CARS_QUERY_KEY,
   PUBLIC_CAR_CATEGORIES_QUERY_KEY,
   fetchAdminCarCategories,
   createAdminCarCategory,
@@ -58,10 +59,11 @@ const formatUpdatedDate = (updatedAt: string): string => {
 
 export default function ManageCategoriesPage() {
   const queryClient = useQueryClient();
-  const { can: canAccess } = usePermissions();
+  const { can: canAccess, isLoaded: isPermissionsLoaded } = usePermissions();
   const canViewCategories = canAccess(Permissions.VIEW_CATEGORY);
   const canManageCategories = canAccess(Permissions.MANAGE_CATEGORY);
-  const canAccessCategoryPage = canViewCategories || canManageCategories;
+  const canAccessCategoryPage =
+    isPermissionsLoaded && (canViewCategories || canManageCategories);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] =
@@ -92,6 +94,14 @@ export default function ManageCategoriesPage() {
     });
     void queryClient.invalidateQueries({
       queryKey: PUBLIC_CAR_CATEGORIES_QUERY_KEY,
+      refetchType: "active",
+    });
+    void queryClient.invalidateQueries({
+      queryKey: PUBLIC_CARS_QUERY_KEY,
+      refetchType: "active",
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["publicCar"],
       refetchType: "active",
     });
   };
@@ -369,9 +379,10 @@ export default function ManageCategoriesPage() {
 
         <CardContent className="pt-1 sm:pt-2">
           <div className="rounded-lg bg-white p-4">
-            {!canAccessCategoryPage ? (
+            {!isPermissionsLoaded ? null : !canAccessCategoryPage ? (
               <div className="mb-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-                You do not have permission to view categories yet. Ask an admin to grant View Category.
+                You do not have permission to view categories yet. Ask an admin
+                to grant View Category.
               </div>
             ) : null}
             {categoriesError ? (

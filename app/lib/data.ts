@@ -21,6 +21,7 @@ export type PublicCar = {
   year: number;
   category: string;
   location: string;
+  homeLocationIsActive?: boolean;
   seats: number;
   fuelType: string;
   transmission: string;
@@ -56,9 +57,16 @@ export type BackendCar = {
     isActive?: boolean;
   } | null;
   homeLocation?: {
+    id?: string;
     name: string;
+    isActive?: boolean;
+    phone?: string | null;
+    email?: string | null;
   } | null;
 };
+
+export const PUBLIC_CARS_QUERY_KEY = ["publicCars"] as const;
+export const PUBLIC_CAR_DETAIL_QUERY_KEY = ["publicCar"] as const;
 
 export const initialCars: Car[] = [
   {

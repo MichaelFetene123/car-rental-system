@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -8,6 +8,8 @@ import {
   Fuel,
   Settings,
   MapPin,
+  Phone,
+  Mail,
   Heart,
   LoaderCircle,
   BadgeAlert,
@@ -18,7 +20,11 @@ import { Card } from "@/app/ui/card";
 import { Badge } from "@/app/ui/badge";
 import { ImageWithFallback } from "@/app/ui/figma/imageWithFallBack";
 import { CarDetailSkeleton } from "@/app/ui/skeletons";
-import type { BackendCar, PublicCar } from "@/app/lib/data";
+import {
+  PUBLIC_CAR_DETAIL_QUERY_KEY,
+  type BackendCar,
+  type PublicCar,
+} from "@/app/lib/data";
 import { getLocationLabel } from "@/app/lib/format";
 import {
   getUnavailableBadgeLabel,
@@ -41,11 +47,17 @@ type BackendCarWithLocationId = BackendCar & {
   homeLocation?: {
     id?: string;
     name?: string;
+    isActive?: boolean;
+    phone?: string | null;
+    email?: string | null;
   } | null;
 };
 
 type PublicCarDetail = PublicCar & {
   homeLocationId?: string;
+  homeLocationIsActive?: boolean;
+  homeLocationPhone?: string | null;
+  homeLocationEmail?: string | null;
   categoryIsActive?: boolean;
 };
 
@@ -67,13 +79,19 @@ const mapBackendCarToPublicCar = (
   categoryIsActive: car.category?.isActive,
   location: car.homeLocation?.name ?? "Unknown",
   homeLocationId: car.homeLocation?.id,
+  homeLocationIsActive: car.homeLocation?.isActive,
+  homeLocationPhone: car.homeLocation?.phone ?? null,
+  homeLocationEmail: car.homeLocation?.email ?? null,
   seats: car.seats,
   fuelType: car.fuelType ?? "Unknown",
   transmission: car.transmission,
   pricePerDay: Number(car.pricePerDay),
   imageUrl: car.imageUrl ?? "",
   status: car.status,
-  available: car.status === "available" && (car.category?.isActive ?? true),
+  available:
+    car.status === "available" &&
+    (car.category?.isActive ?? true) &&
+    (car.homeLocation?.isActive ?? true),
   unavailablePeriod: car.unavailablePeriod ?? null,
   description: undefined,
 });
@@ -153,13 +171,24 @@ export default function CarDetailPage() {
     isPending: isLoadingCar,
     error: carError,
   } = useQuery<PublicCarDetail, Error>({
-    queryKey: ["publicCar", id],
+    queryKey: [...PUBLIC_CAR_DETAIL_QUERY_KEY, id],
     queryFn: ({ signal }) => fetchPublicCarById(id as string, signal),
     enabled: Boolean(id),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+
+  useEffect(() => {
+    if (!id) return;
+
+    void queryClient.invalidateQueries({
+      queryKey: [...PUBLIC_CAR_DETAIL_QUERY_KEY, id],
+      refetchType: "active",
+    });
+  }, [id, queryClient]);
 
   const bookingMutation = useMutation({
     mutationFn: (payload: CreateBookingPayload) => createBooking(payload),
@@ -263,9 +292,20 @@ export default function CarDetailPage() {
       : false;
   const hasActiveUnavailable = Boolean(unavailableBadge);
   const isCategoryInactive = car.categoryIsActive === false;
+  const isLocationInactive = car.homeLocationIsActive === false;
+  const hasLocationPhone = Boolean(car.homeLocationPhone?.trim());
+  const hasLocationEmail = Boolean(car.homeLocationEmail?.trim());
   const isSuspendedUser = currentUser?.status === "suspended";
   const isCarUnavailable =
-    car.status !== "available" || hasActiveUnavailable || isCategoryInactive;
+    car.status !== "available" ||
+    hasActiveUnavailable ||
+    isCategoryInactive ||
+    isLocationInactive;
+  const isBookingDisabled =
+    bookingMutation.isPending ||
+    isCarUnavailable ||
+    hasDateOverlap ||
+    isSuspendedUser;
 
   const handleBookNow = async () => {
     if (bookingMutation.isPending) return;
@@ -273,6 +313,20 @@ export default function CarDetailPage() {
 
     if (isSuspendedUser) {
       toast.error("Your account is suspended. Booking is unavailable.");
+      return;
+    }
+
+    if (isCategoryInactive) {
+      toast.error(
+        "This category is currently inactive. Bookings are not available for cars in this category.",
+      );
+      return;
+    }
+
+    if (isLocationInactive) {
+      toast.error(
+        "This car is currently unavailable because its location is inactive.",
+      );
       return;
     }
 
@@ -364,6 +418,11 @@ export default function CarDetailPage() {
                       Category Inactive
                     </Badge>
                   )}
+                  {isLocationInactive && (
+                    <Badge className="bg-amber-100 text-amber-800 border border-amber-300">
+                      Location Inactive
+                    </Badge>
+                  )}
                   {unavailableBadge ? (
                     <Badge className="bg-amber-100 text-amber-800">
                       {unavailableBadge}
@@ -372,7 +431,19 @@ export default function CarDetailPage() {
                 </div>
               </div>
 
-              {unavailableDetail ? (
+              {isCategoryInactive ? (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+                  This category is currently inactive. Bookings are not
+                  available for cars in this category.
+                </div>
+              ) : null}
+
+              {isLocationInactive ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  This car is currently unavailable because its location is
+                  inactive.
+                </div>
+              ) : unavailableDetail ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   {unavailableDetail}
                 </div>
@@ -399,6 +470,18 @@ export default function CarDetailPage() {
                     <span className="font-medium">
                       {getLocationLabel(car.location)}
                     </span>
+                    {hasLocationPhone ? (
+                      <span className="mt-2 inline-flex items-center gap-1 text-xs text-gray-600 break-all">
+                        <Phone className="h-3.5 w-3.5 shrink-0" />
+                        {car.homeLocationPhone}
+                      </span>
+                    ) : null}
+                    {hasLocationEmail ? (
+                      <span className="mt-1 inline-flex items-center gap-1 text-xs text-gray-600 break-all">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        {car.homeLocationEmail}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </Card>
@@ -413,7 +496,7 @@ export default function CarDetailPage() {
               </div>
 
               {/* Features */}
-              
+
               <div>
                 <h3 className="font-semibold mb-3">Features</h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -471,6 +554,7 @@ export default function CarDetailPage() {
                     value={pickupDate}
                     onChange={(e) => setPickupDate(e.target.value)}
                     className="bg-gray-100 border-none"
+                    disabled={isLocationInactive || isCategoryInactive}
                   />
                 </div>
 
@@ -483,6 +567,7 @@ export default function CarDetailPage() {
                     value={returnDate}
                     onChange={(e) => setReturnDate(e.target.value)}
                     className="bg-gray-100 border-none"
+                    disabled={isLocationInactive || isCategoryInactive}
                   />
                 </div>
               </div>
@@ -490,12 +575,7 @@ export default function CarDetailPage() {
                 onClick={handleBookNow}
                 className="w-full mb-4 bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300"
                 size="lg"
-                disabled={
-                  bookingMutation.isPending ||
-                  isCarUnavailable ||
-                  hasDateOverlap ||
-                  isSuspendedUser
-                }
+                disabled={isBookingDisabled}
                 aria-busy={bookingMutation.isPending}
               >
                 {bookingMutation.isPending ? (
@@ -514,11 +594,21 @@ export default function CarDetailPage() {
                 </p>
               ) : null}
 
-              {hasActiveUnavailable ? (
+              {isCategoryInactive ? (
+                <p className="mb-3 text-sm text-orange-700">
+                  This category is currently inactive. Bookings are not
+                  available for cars in this category.
+                </p>
+              ) : hasActiveUnavailable ? (
                 <p className="mb-3 text-sm text-amber-700">
                   {unavailableRange
                     ? `Unavailable: ${unavailableRange}`
                     : "This car is temporarily unavailable."}
+                </p>
+              ) : isLocationInactive ? (
+                <p className="mb-3 text-sm text-amber-700">
+                  This car is currently unavailable because its location is
+                  inactive.
                 </p>
               ) : isSuspendedUser ? (
                 <p className="mb-3 text-sm text-red-700">

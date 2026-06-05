@@ -10,6 +10,8 @@ import {
   logoutUser,
   persistAccessToken,
   registerUser,
+  verifyEmail,
+  resendVerification,
   notifyAuthStateReset,
   SESSION_EXPIRED_TOAST_KEY,
   SESSION_EXPIRED_MESSAGE,
@@ -96,6 +98,23 @@ export const useLoginMutation = () => {
 export const useRegisterMutation = () =>
   useMutation({
     mutationFn: (payload: RegisterPayload) => registerUser(payload),
+  });
+
+export const useVerifyEmailMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { token: string }) => verifyEmail(payload),
+    onSuccess: (data) => {
+      persistAccessToken(data.access_token);
+      queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+    },
+  });
+};
+
+export const useResendVerificationMutation = () =>
+  useMutation({
+    mutationFn: (payload: { email: string }) => resendVerification(payload),
   });
 
 export const useLogoutMutation = () => {

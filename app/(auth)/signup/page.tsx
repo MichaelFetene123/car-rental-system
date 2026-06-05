@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { Car } from "lucide-react";
+import { Car, Loader2 } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Label } from "@/app/ui/lable";
-import { useLoginMutation, useRegisterMutation } from "@/app/lib/auth-queries";
+import { useRegisterMutation } from "@/app/lib/auth-queries";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -21,7 +21,6 @@ export default function SignupPage() {
   });
   const [error, setError] = useState("");
   const registerMutation = useRegisterMutation();
-  const loginMutation = useLoginMutation();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,12 +39,7 @@ export default function SignupPage() {
         phone: form.phone.trim() || undefined,
       });
 
-      await loginMutation.mutateAsync({
-        email: form.email.trim(),
-        password: form.password,
-      });
-      router.push("/cars");
-      router.refresh();
+      router.push(`/verify-email?email=${encodeURIComponent(form.email.trim())}`);
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -165,11 +159,13 @@ export default function SignupPage() {
           <Button
             type="submit"
             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={registerMutation.isPending || loginMutation.isPending}
+            disabled={registerMutation.isPending}
           >
-            {registerMutation.isPending || loginMutation.isPending
-              ? "Creating account..."
-              : "Create account"}
+            {registerMutation.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              "Create account"
+            )}
           </Button>
         </form>
 

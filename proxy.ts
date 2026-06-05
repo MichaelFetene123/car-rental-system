@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const AUTH_COOKIE_NAME = "car_rental_access_token";
-const PUBLIC_ROUTES = new Set(["/", "/login", "/signup"]);
+const PUBLIC_ROUTES = new Set(["/", "/login", "/signup", "/verify-email"]);
 const ADMIN_ROLE = "admin";
 const STAFF_ROLE = "stuff";
 

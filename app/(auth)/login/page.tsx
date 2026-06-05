@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
-import { Car } from "lucide-react";
+import { Car, Loader2 } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
 import { Label } from "@/app/ui/lable";
@@ -28,11 +28,13 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
   const loginMutation = useLoginMutation();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+    setNeedsVerification(false);
 
     try {
       const response = await loginMutation.mutateAsync({
@@ -43,11 +45,17 @@ function LoginForm() {
       router.push(isAdmin ? "/dashboard" : redirectPath);
       router.refresh();
     } catch (submissionError) {
-      setError(
+      const message =
         submissionError instanceof Error
           ? submissionError.message
-          : "Unable to sign in. Please try again.",
-      );
+          : "Unable to sign in. Please try again.";
+
+      if (message.includes("Please verify your email before logging in")) {
+        setNeedsVerification(true);
+        setError("");
+      } else {
+        setError(message);
+      }
     }
   };
 
@@ -95,7 +103,20 @@ function LoginForm() {
             />
           </div>
 
-          {error ? (
+          {needsVerification ? (
+            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-3 space-y-2">
+              <p>
+                Your email is not verified. Please check your inbox or{" "}
+                <Link
+                  href={`/verify-email?email=${encodeURIComponent(email)}`}
+                  className="text-blue-700 hover:underline font-medium"
+                >
+                  request a new verification link
+                </Link>
+                .
+              </p>
+            </div>
+          ) : error ? (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
               {error}
             </p>
@@ -106,7 +127,11 @@ function LoginForm() {
             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
             disabled={loginMutation.isPending}
           >
-            {loginMutation.isPending ? "Signing in..." : "Sign in"}
+            {loginMutation.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              "Sign in"
+            )}
           </Button>
         </form>
 

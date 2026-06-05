@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Car, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
+import { Car, Facebook, Twitter, Instagram, Linkedin, Loader2 } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/app/lib/auth-queries";
@@ -154,18 +154,22 @@ export default function CustomerLayout({
                   )}
                   <Button
                     size="sm"
-                    className="px-4 py-2  shadow-lg shadow-blue-600/30 transition-all duration-300  hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/40 hover:text-white"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                     onClick={handleSignOut}
                     disabled={isSigningOut}
                   >
-                    {isSigningOut ? "Signing Out..." : "Sign Out"}
+                    {isSigningOut ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Sign out"
+                    )}
                   </Button>
                 </>
               ) : (
                 <Button
                   size="sm"
                   asChild
-                  className="px-4 py-2  shadow-lg shadow-blue-600/30 transition-all duration-300  hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/40 hover:text-white"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                 >
                   <Link href="/login">Login</Link>
                 </Button>

@@ -19,7 +19,8 @@ export function TanstackProvider({ children }: TanstackProviderProps) {
     const isPublicPath =
       pathname === "/" ||
       pathname.startsWith("/login") ||
-      pathname.startsWith("/signup");
+      pathname.startsWith("/signup") ||
+      pathname.startsWith("/verify-email");
 
     if (isPublicPath) return;
 

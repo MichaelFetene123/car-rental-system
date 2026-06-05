@@ -29,7 +29,7 @@ export const isManualLoggingOut = (): boolean => {
   return window.sessionStorage.getItem(MANUAL_LOGOUT_KEY) === "true";
 };
 
-const PUBLIC_PATH_PREFIXES = ["/", "/login", "/signup"];
+const PUBLIC_PATH_PREFIXES = ["/", "/login", "/signup", "/verify-email"];
 
 const TOKEN_COOKIE_TTL_SECONDS = 60 * 60;
 
@@ -57,6 +57,7 @@ export type CurrentUser = {
   sub: string;
   email?: string;
   full_name?: string;
+  email_verified?: boolean;
   totalBookings?: number | null;
   status?: string;
   roles: string[];
@@ -137,6 +138,22 @@ export const registerUser = async (payload: RegisterPayload): Promise<void> => {
     body: JSON.stringify(payload),
   });
 };
+
+export const verifyEmail = async (payload: {
+  token: string;
+}): Promise<{ access_token: string }> =>
+  requestJson<{ access_token: string }>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const resendVerification = async (payload: {
+  email: string;
+}): Promise<{ message: string }> =>
+  requestJson<{ message: string }>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 
 const readTokenFromCookie = (): string | null => {
   if (typeof document === "undefined") return null;

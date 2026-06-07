@@ -190,14 +190,14 @@ export default function CarsPage() {
               filteredCars.map((car) => (
                 <Card
                   key={car.id}
-                  className="overflow-hidden shadow-2xl hover:shadow-lg transition-shadow cursor-pointer group"
+                  className="overflow-hidden bg-white border border-gray-100 shadow-md hover:shadow-lg hover:border-blue-200 transition-all duration-200 cursor-pointer group"
                   onClick={() => router.push(`/cars/${car.id}`)}
                 >
                   <div className="relative">
                     <ImageWithFallback
                       src={resolveCarImageUrl(car.imageUrl) || fallbackCarImage}
                       alt={car.name}
-                      className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-56 object-cover transition-opacity duration-200 group-hover:opacity-95"
                     />
                     {(() => {
                       const unavailableBadge = getUnavailableBadgeLabel(

@@ -67,7 +67,10 @@ export const useCurrentUser = () =>
             }
 
             if (shouldRedirectToLogin()) {
-              window.location.replace("/login");
+              const currentPath = window.location.pathname;
+              const currentSearch = window.location.search;
+              const fullPath = encodeURIComponent(`${currentPath}${currentSearch}`);
+              window.location.replace(`/login?redirect=${fullPath}`);
             }
           }
         }

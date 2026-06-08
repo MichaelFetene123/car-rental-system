@@ -309,3 +309,87 @@ export function PaymentBookingsSkeleton({ count }: { count: number }) {
     </div>
   );
 }
+
+// ─── Reports Page Skeletons ───────────────────────────────────────────────────
+
+export function ReportsSummaryCardSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div className="h-5 w-32 rounded-md bg-gray-200" />
+        <div className="size-5 rounded-full bg-gray-200" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-9 w-24 rounded-md bg-gray-200" />
+        <div className="h-4 w-28 rounded-md bg-gray-200 mt-2" />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ReportsChartSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader>
+        <div className="h-6 w-48 rounded-md bg-gray-200" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-[400px] w-full rounded-md bg-gray-200" />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ReportsBarChartSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader>
+        <div className="h-6 w-56 rounded-md bg-gray-200" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-[300px] w-full rounded-md bg-gray-200" />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ReportsListSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader>
+        <div className="h-6 w-56 rounded-md bg-gray-200" />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={`report-list-item-${i}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-5 w-32 rounded-md bg-gray-200" />
+                <div className="h-5 w-24 rounded-md bg-gray-200" />
+              </div>
+              <div className="h-2 w-full rounded-full bg-gray-200" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ReportsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <ReportsSummaryCardSkeleton />
+        <ReportsSummaryCardSkeleton />
+        <ReportsSummaryCardSkeleton />
+      </div>
+      <ReportsChartSkeleton />
+      <ReportsBarChartSkeleton />
+      <div className="grid gap-4 md:grid-cols-2">
+        <ReportsListSkeleton />
+        <ReportsListSkeleton />
+      </div>
+    </div>
+  );
+}

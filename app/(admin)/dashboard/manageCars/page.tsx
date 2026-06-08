@@ -295,7 +295,10 @@ export default function ManageCars() {
     if (!isManualLoggingOut()) {
       toast.error("Session expired. Please log in again.");
     }
-    router.replace("/login");
+    const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
+    const fullPath = encodeURIComponent(`${currentPath}${currentSearch}`);
+    router.replace(`/login?redirect=${fullPath}`);
   }, [router]);
 
   const { data: categories = [], error: categoriesError } = useQuery<

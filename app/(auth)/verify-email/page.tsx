@@ -13,6 +13,7 @@ import {
   RefreshCw,
   WifiOff,
   ArrowLeft,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/app/ui/button";
 import { Input } from "@/app/ui/input";
@@ -30,6 +31,29 @@ type VerificationState =
   | { type: "expired" }
   | { type: "failed"; message: string };
 
+/** Returns a webmail URL for common providers, or null if unknown. */
+function getEmailProviderUrl(email: string): string | null {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (domain.includes("gmail")) return "https://mail.google.com";
+  if (domain.includes("yahoo")) return "https://mail.yahoo.com";
+  if (
+    domain.includes("outlook") ||
+    domain.includes("hotmail") ||
+    domain.includes("live") ||
+    domain.includes("msn")
+  )
+    return "https://outlook.live.com";
+  if (
+    domain.includes("icloud") ||
+    domain.includes("me.com") ||
+    domain.includes("mac.com")
+  )
+    return "https://www.icloud.com/mail";
+  if (domain.includes("proton") || domain.includes("pm.me"))
+    return "https://mail.proton.me";
+  return null;
+}
+
 /* Loading skeleton shown while useSearchParams resolves */
 function VerifyEmailSkeleton() {
   return (
@@ -43,7 +67,6 @@ function VerifyEmailSkeleton() {
         </div>
         <div className="flex flex-col items-center gap-4 py-8">
           <Loader2 className="h-10 w-10 animate-spin text-blue-400" />
-          <p className="text-sm text-gray-400">Loading…</p>
         </div>
       </section>
     </main>
@@ -134,7 +157,7 @@ function VerifyEmailContent() {
     );
   };
 
-  if (isUserLoading || currentUser?.email_verified) {
+  if ((isUserLoading && !!token) || currentUser?.email_verified) {
     return <VerifyEmailSkeleton />;
   }
 
@@ -278,9 +301,10 @@ function VerifyEmailContent() {
           </div>
         )}
 
-        {/* ── PENDING (check email / after resend) ── */}
+        {/* ── PENDING (verification link sent) ── */}
         {state.type === "pending" && (
           <div className="flex flex-col items-center gap-5 py-6">
+            {/* Icon */}
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center">
                 <Mail className="h-10 w-10 text-blue-600" />
@@ -290,35 +314,42 @@ function VerifyEmailContent() {
               </span>
             </div>
 
-            <div className="space-y-1">
+            {/* Heading & message */}
+            <div className="space-y-2">
               <h1 className="text-2xl font-bold text-gray-900">
-                Check your inbox
+                Check your email
               </h1>
-              <p className="text-sm text-gray-500 max-w-xs mx-auto">
-                We&apos;ve sent a new verification link to{" "}
-                <span className="font-semibold text-gray-800">
-                  {email || "your email"}
-                </span>
-                . Click the link in the email to verify your account.
+              <p className="text-sm text-gray-500 max-w-xs mx-auto leading-relaxed">
+                Please check your email and click the verification link to
+                activate your account.
+                {email && (
+                  <>
+                    {" "}
+                    <span className="text-gray-400">{email}</span>
+                  </>
+                )}
               </p>
             </div>
 
-          
+            {/* Action buttons */}
+            <div className="w-full flex flex-col gap-3">
+              {/* Open Email button — only shown when provider is known */}
+              {email && getEmailProviderUrl(email) && (
+                <a
+                  href={getEmailProviderUrl(email)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open Email App
+                </a>
+              )}
 
-            <div className="w-full space-y-3">
-              <div className="space-y-2 text-left">
-                <Label htmlFor="resend-email-pending">Email address</Label>
-                <Input
-                  id="resend-email-pending"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 border-gray-300 focus-visible:ring-blue-300"
-                />
-              </div>
+              {/* Resend button */}
               <Button
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2"
+                variant="outline"
+                className="w-full h-11 border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
                 disabled={resendMutation.isPending || !email.trim()}
                 onClick={handleResend}
               >
@@ -327,11 +358,16 @@ function VerifyEmailContent() {
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4" />
-                    Resend verification email
+                    Resend Verification Email
                   </>
                 )}
               </Button>
             </div>
+
+            <p className="text-xs text-gray-400">
+              Didn&apos;t receive the email? Check your spam folder or resend
+              above.
+            </p>
 
             <Link
               href="/signup"

@@ -14,21 +14,23 @@ const resolveNextPath = (nextPath: string | null) => {
   if (nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")) {
     return nextPath;
   }
-  return "/cars";
+  return null;
 };
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const explicitRedirect = searchParams.get("redirect") || searchParams.get("next");
   const redirectPath = useMemo(
-    () => resolveNextPath(searchParams.get("next")),
-    [searchParams],
+    () => resolveNextPath(explicitRedirect),
+    [explicitRedirect],
   );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const loginMutation = useLoginMutation();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -42,7 +44,9 @@ function LoginForm() {
         password,
       });
       const isAdmin = hasTokenRole(response.access_token, "admin");
-      router.push(isAdmin ? "/dashboard" : redirectPath);
+      setIsNavigating(true);
+      const defaultPath = isAdmin ? "/dashboard" : "/";
+      router.push(redirectPath || defaultPath);
       router.refresh();
     } catch (submissionError) {
       const message =
@@ -125,9 +129,9 @@ function LoginForm() {
           <Button
             type="submit"
             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={loginMutation.isPending}
+            disabled={loginMutation.isPending || isNavigating}
           >
-            {loginMutation.isPending ? (
+            {loginMutation.isPending || isNavigating ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               "Sign in"

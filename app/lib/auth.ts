@@ -1,13 +1,22 @@
-import { API_BASE_URL } from "@/server/server";
+import {
+  API_BASE_URL,
+  TOKEN_STORAGE_KEY,
+  AUTH_COOKIE_NAME,
+  SESSION_EXPIRED_TOAST_KEY,
+  MANUAL_LOGOUT_KEY,
+  AUTH_STATE_RESET_EVENT,
+  SESSION_EXPIRED_MESSAGE,
+} from "@/server/server";
 
-const TOKEN_STORAGE_KEY = "car_rental_access_token";
-
-export const AUTH_COOKIE_NAME = "car_rental_access_token";
-export const SESSION_EXPIRED_TOAST_KEY = "car_rental_session_expired_message";
-const MANUAL_LOGOUT_KEY = "car_rental_manual_logout";
-export const AUTH_STATE_RESET_EVENT = "car-rental-auth-state-reset";
-
-export const SESSION_EXPIRED_MESSAGE = "Session expired. Please login again.";
+export {
+  API_BASE_URL,
+  TOKEN_STORAGE_KEY,
+  AUTH_COOKIE_NAME,
+  SESSION_EXPIRED_TOAST_KEY,
+  MANUAL_LOGOUT_KEY,
+  AUTH_STATE_RESET_EVENT,
+  SESSION_EXPIRED_MESSAGE,
+};
 
 export const setManualLogoutFlag = () => {
   if (typeof window === "undefined") return;
@@ -139,6 +148,7 @@ export const registerUser = async (payload: RegisterPayload): Promise<void> => {
   });
 };
 
+// TODO: i have stopped here 
 export const verifyEmail = async (payload: {
   token: string;
 }): Promise<{ access_token: string }> =>
@@ -307,7 +317,10 @@ const handleSessionExpired = () => {
   if (typeof window === "undefined") return;
 
   if (shouldRedirectToLogin()) {
-    window.location.replace("/login");
+    const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
+    const fullPath = encodeURIComponent(`${currentPath}${currentSearch}`);
+    window.location.replace(`/login?redirect=${fullPath}`);
   }
 };
 

@@ -83,9 +83,12 @@ const fetchPublicCars = async (signal?: AbortSignal): Promise<PublicCar[]> => {
     .map(mapBackendCarToPublicCar);
 };
 
+const CARS_PER_PAGE = 9;
+
 export default function CarsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const {
     data: cars = [],
@@ -120,6 +123,10 @@ export default function CarsPage() {
     });
   }, [searchQuery, cars]);
 
+  const totalPages = Math.ceil(filteredCars.length / CARS_PER_PAGE);
+  const startIndex = (currentPage - 1) * CARS_PER_PAGE;
+  const paginatedCars = filteredCars.slice(startIndex, startIndex + CARS_PER_PAGE);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
@@ -141,7 +148,10 @@ export default function CarsPage() {
                 type="text"
                 placeholder="Search by make, model, or features"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
@@ -157,7 +167,7 @@ export default function CarsPage() {
         <div className="container mx-auto max-w-6xl">
           <h1 className="  mb-6 text-3xl font-bold pb-8 border-b border-gray-50 text-center">
             <span className="bg-linear-to-r from-blue-950 to-blue-500 text-transparent bg-clip-text ">
-              {cars?.length} Available Cars
+              {filteredCars.length} Available Cars
             </span>
           </h1>
 
@@ -169,7 +179,7 @@ export default function CarsPage() {
             ) : null}
 
             {isLoadingCars ? (
-              <HomeCarCardsSkeleton count={HOME_RECENT_CARS_LIMIT} />
+              <HomeCarCardsSkeleton count={CARS_PER_PAGE} />
             ) : filteredCars.length === 0 ? (
               <Card className="col-span-full p-12 text-center">
                 <div className="max-w-md mx-auto">
@@ -187,7 +197,7 @@ export default function CarsPage() {
                 </div>
               </Card>
             ) : (
-              filteredCars.map((car) => (
+              paginatedCars.map((car) => (
                 <Card
                   key={car.id}
                   className="overflow-hidden bg-white border border-gray-100 shadow-md hover:shadow-lg hover:border-blue-200 transition-all duration-200 cursor-pointer group"
@@ -262,6 +272,37 @@ export default function CarsPage() {
               ))
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {!isLoadingCars && totalPages > 1 && (
+            <div className="mt-12 flex justify-center items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCurrentPage((p) => Math.max(1, p - 1));
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={currentPage === 1}
+                className="bg-blue-100 hover:bg-blue-200 border-blue-200"
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-gray-600 font-medium">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCurrentPage((p) => Math.min(totalPages, p + 1));
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={currentPage === totalPages}
+                className="bg-blue-100 hover:bg-blue-200 border-blue-200"
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       </section>
     </div>

@@ -13,6 +13,7 @@ import {
   getCurrentUserName,
   isCurrentUserAdmin,
 } from "@/app/lib/auth";
+import { AUTH_STATE_RESET_EVENT } from "@/server/server";
 
 export default function CustomerLayout({
   children,
@@ -25,20 +26,39 @@ export default function CustomerLayout({
   const { can: canAccess } = usePermissions();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [localAuth, setLocalAuth] = useState({
+    email: null as string | null,
+    name: null as string | null,
+    isAdmin: false,
+  });
 
   useEffect(() => {
+    const updateLocalAuth = () => {
+      setLocalAuth({
+        email: getCurrentUserEmail(),
+        name: getCurrentUserName(),
+        isAdmin: isCurrentUserAdmin(),
+      });
+    };
+
+    updateLocalAuth();
     setIsHydrated(true);
+
+    window.addEventListener(AUTH_STATE_RESET_EVENT, updateLocalAuth);
+    return () => {
+      window.removeEventListener(AUTH_STATE_RESET_EVENT, updateLocalAuth);
+    };
   }, []);
 
-  const fallbackEmail = isHydrated ? getCurrentUserEmail() : null;
-  const fallbackIsAdmin = isHydrated ? isCurrentUserAdmin() : false;
+  const fallbackEmail = localAuth.email;
+  const fallbackIsAdmin = localAuth.isAdmin;
   const isAuthenticated = Boolean(currentUser || fallbackEmail);
   const isAdmin = Boolean(
     currentUser?.roles?.some((role) => role === "admin") ?? fallbackIsAdmin,
   );
   const canViewDashboard = canAccess(Permissions.VIEW_DASHBOARD);
   const rawUserName =
-    currentUser?.full_name ?? (isHydrated ? getCurrentUserName() : undefined);
+    currentUser?.full_name ?? (isHydrated ? localAuth.name : undefined);
   const rawUserEmail = currentUser?.email ?? fallbackEmail;
   const userName = typeof rawUserName === "string" ? rawUserName : undefined;
   const userEmail = typeof rawUserEmail === "string" ? rawUserEmail : undefined;
@@ -60,6 +80,11 @@ export default function CustomerLayout({
     setIsSigningOut(true);
 
     await logoutUser();
+    
+    // Using window.location.href forces a full page reload and reliable redirect.
+    // However, the prompt asks to "not require a page refresh for the UI to update".
+    // We already do not require a refresh for the UI, but we still need to redirect.
+    // router.replace("/") is a soft client-side redirect. Let's keep it.
     router.replace("/");
 
     setIsSigningOut(false);
@@ -67,8 +92,8 @@ export default function CustomerLayout({
 
   return (
     <div className="min-h-screen bg-white  ">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-blue-100 bg-linear-to-r from-slate-50 via-white to-blue-50/60 backdrop-blur">
+      {/* Header linear-to-r from-slate-50 via-white to- */}
+      <header className="sticky top-0 z-50 border-b border-blue-100 bg-blue-50/60 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 py-3 md:py-4">
             {/* Logo */}
@@ -154,15 +179,11 @@ export default function CustomerLayout({
                   )}
                   <Button
                     size="sm"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                     onClick={handleSignOut}
                     disabled={isSigningOut}
                   >
-                    {isSigningOut ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Sign out"
-                    )}
+                    Log out
                   </Button>
                 </>
               ) : (

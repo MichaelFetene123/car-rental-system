@@ -31,7 +31,6 @@ import { usePermissions } from "@/app/hooks/use-permissions";
 import { Permissions } from "@/app/lib/permissions";
 import {
   ADMIN_CAR_CATEGORIES_QUERY_KEY,
-  PUBLIC_CARS_QUERY_KEY,
   PUBLIC_CAR_CATEGORIES_QUERY_KEY,
   fetchAdminCarCategories,
   createAdminCarCategory,
@@ -39,6 +38,7 @@ import {
   deleteAdminCarCategory,
   type AdminCarCategory,
 } from "@/app/lib/car-categories";
+import { PUBLIC_CARS_QUERY_KEY } from "@/app/lib/data";
 
 const ADMIN_CATEGORIES_REFRESH_INTERVAL_MS = 15 * 1000;
 const CATEGORY_TABLE_VISIBLE_ROWS = 5;

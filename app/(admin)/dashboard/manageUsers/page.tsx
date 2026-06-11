@@ -84,6 +84,7 @@ export default function ManageUsers() {
   const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({});
   const [editingUser, setEditingUser] =
     useState<AdminUserMutationResult | null>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
@@ -480,6 +481,39 @@ export default function ManageUsers() {
         </Card>
       </div>
 
+      <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <DialogContent className="bg-white border-none">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this user? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setUserToDelete(null)}
+              className="hover:text-gray-600 hover:border-gray-500"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 hover:bg-red-500 text-white"
+              onClick={() => {
+                if (userToDelete) {
+                  handleDeleteUser(userToDelete);
+                  setUserToDelete(null);
+                }
+              }}
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Users Table */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -734,7 +768,7 @@ export default function ManageUsers() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDeleteUser(user.id)}
+                              onClick={() => setUserToDelete(user.id)}
                               disabled={!canManageUsers}
                             >
                               <Trash2 className="size-4 text-red-600" />
